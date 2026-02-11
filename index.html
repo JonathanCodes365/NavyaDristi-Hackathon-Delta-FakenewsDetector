@@ -5,99 +5,217 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>News Frontend</title>
 <style>
-body { margin:0; font-family: Arial, sans-serif; }
-.top-nav { display:flex; justify-content:flex-end; align-items:center; padding:10px 20px; background-color:#3e3333; gap:10px; }
-.top-nav input[type="text"] { width:265px; padding:8px 12px; border:1px solid #000; border-radius:4px; background-color:#1f0a0a; color:#fff; }
-.top-nav input[type="text"]::placeholder { color:#ccc; }
-.top-nav button { padding:8px 16px; border:none; border-radius:4px; cursor:pointer; }
-.search-btn { background-color:#e0e0e0; }
-.verify-btn { background-color:orange; color:white; }
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background-color: #f5f5f5;
+}
 
-#news-container { display: flex; flex-direction: column; align-items: center; gap: 25px; padding: 40px 20px; }
-.news-card { display: flex; align-items: center; justify-content: flex-start; width: 750px; max-width: 95%; text-decoration: none; color: #000; background-color: #fff; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
-.news-card img { width: 220px; height: 140px; object-fit: cover; border-radius: 8px; margin-right: 20px; }
-.news-card h4 { margin: 0; font-size: 18px; line-height: 1.4; }
-.news-card:hover { transform: translateY(-3px); }
+/* Top nav */
+.top-nav {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: #3e3333;
+    gap: 10px;
+}
 
-#result { padding: 20px; font-weight: bold; }
+.top-nav input[type="text"] {
+    width: 300px;
+    padding: 8px 12px;
+    border: 1px solid #000;
+    border-radius: 4px;
+    background-color: #1f0a0a;
+    color: #fff;
+}
+
+.top-nav input[type="text"]::placeholder {
+    color: #ccc;
+}
+
+.top-nav button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.search-btn { background-color: #e0e0e0; }
+.verify-btn { background-color: orange; color: white; }
+
+/* News container */
+#news-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 40px 20px;
+}
+
+/* News card */
+.news-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 750px;
+    max-width: 95%;
+    padding: 15px;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    text-decoration: none;
+    color: #000;
+    transition: transform 0.2s ease;
+}
+
+.news-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Always visible thumbnail */
+.card-thumb {
+    width: 220px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+.news-card h4 {
+    margin: 0;
+    font-size: 18px;
+}
+
+/* Hover tooltip in center */
+.hover-preview {
+    display: none;
+    position: absolute;
+    top: 50%;       /* center vertically relative to card */
+    left: 50%;      /* center horizontally */
+    transform: translate(-50%, -50%);
+    width: 400px;
+    background-color: rgba(0,0,0,0.95);
+    color: #fff;
+    padding: 15px;
+    border-radius: 8px;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    text-align: left;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+/* Show tooltip on hover */
+.news-card:hover .hover-preview {
+    display: block;
+    opacity: 1;
+}
+
+/* Thumbnail inside tooltip */
+.hover-preview img {
+    width: 150px;
+    height: 100px;
+    object-fit: cover;
+    float: left;
+    margin-right: 10px;
+    border-radius: 6px;
+}
+
+/* Description inside tooltip */
+.hover-preview p {
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 0;
+}
+
+#result {
+    padding: 20px;
+    font-weight: bold;
+}
 </style>
 </head>
 <body>
 
+<!-- Top nav -->
 <div class="top-nav">
-  <input type="text" id="newsInput" placeholder="Search news...">
-  <button class="search-btn">Search</button>
-  <button class="verify-btn" onclick="verifyNews()">Verify Your News</button>
+    <input type="text" id="newsInput" placeholder="Search news ">
+    <button class="search-btn">Search</button>
+    <button class="verify-btn" onclick="verifyNews()">Verify Your News</button>
 </div>
 
+<!-- News cards -->
 <div id="news-container"></div>
+
+<!-- Verification result -->
 <div id="result"></div>
 
 <script>
-async function loadNews() {
-  const response = await fetch("/get-news");
-  const data = await response.json();
-  const container = document.getElementById("news-container");
-  container.innerHTML = "";
-  data.articles.forEach(article => {
-    if (!article.urlToImage) return;
-    const card = document.createElement("a");
-    card.href = article.url;
-    card.target = "_blank";
-    card.className = "news-card";
-    card.innerHTML = `<img src="${article.urlToImage}" /><h4>${article.title}</h4>`;
-    container.appendChild(card);
-  });
-}
-loadNews();
-
-async function verifyNews() {
-    let text = document.getElementById("newsInput").value;
-    let response = await fetch("/verify", {
-        method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({text:text})
-    });
-    let data = await response.json();
-    document.getElementById("result").innerHTML =
-        `AI Result: ${data.ai_label} (${(data.confidence*100).toFixed(2)}%)<br>
-         Cross-check: ${data.cross_result}<br>
-         Sources found: ${data.cross_sources.join(", ")}`;
-}
-// Get references
-const newsInput = document.getElementById("newsInput");
-const searchBtn = document.querySelector(".search-btn");
-
-// Add click listener to the Search button
-searchBtn.addEventListener("click", () => {
-    const query = newsInput.value.trim();
-    loadNews(query);  // pass the query to loadNews
-});
-
-// Update loadNews function to accept a query
+// ------------------- Load news -------------------
 async function loadNews(query = "") {
-    // If query is empty, fetch top headlines
-    const url = query
-        ? `/search-news?query=${encodeURIComponent(query)}`
-        : "/get-news";
-
+    const url = query ? `/search-news?query=${encodeURIComponent(query)}` : "/get-news";
     const response = await fetch(url);
     const data = await response.json();
-
     const container = document.getElementById("news-container");
-    container.innerHTML = "";  // clear previous articles
+    container.innerHTML = "";
 
     data.articles.forEach(article => {
-        if (!article.urlToImage) return;  // skip if no image
+        if (!article.urlToImage) return;
+
         const card = document.createElement("a");
         card.href = article.url;
         card.target = "_blank";
         card.className = "news-card";
-        card.innerHTML = `<img src="${article.urlToImage}" /><h4>${article.title}</h4>`;
+
+        // Inner HTML: always visible thumbnail + title + hover preview
+        card.innerHTML = `
+            <img src="${article.urlToImage}" class="card-thumb" />
+            <h4>${article.title}</h4>
+            <div class="hover-preview">
+                <img src="${article.urlToImage}" />
+                <p>${article.description ? article.description.substring(0,200) : article.title}</p>
+            </div>
+        `;
         container.appendChild(card);
     });
 }
 
+// Initial load
+loadNews();
+
+// ------------------- Search functionality -------------------
+const newsInput = document.getElementById("newsInput");
+const searchBtn = document.querySelector(".search-btn");
+searchBtn.addEventListener("click", () => {
+    const query = newsInput.value.trim();
+    loadNews(query);
+});
+
+// ------------------- Verify news -------------------
+async function verifyNews() {
+    const text = newsInput.value.trim();
+    if (!text) {
+        alert("Please enter some news text to verify!");
+        return;
+    }
+
+    const response = await fetch("/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+    });
+
+    const data = await response.json();
+
+    let html = `<strong>AI Verdict:</strong> ${data.ai_label} (${(data.confidence*100).toFixed(2)}%)<br>`;
+    html += "<strong>Evidence:</strong><ul>";
+    data.cross_result.forEach(([stance, title], i) => {
+        html += `<li>${stance.toUpperCase()} | <a href="${data.cross_sources[i]}" target="_blank">${title}</a></li>`;
+    });
+    html += "</ul>";
+
+    document.getElementById("result").innerHTML = html;
+}
 </script>
 
 </body>
