@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>News Frontend</title>
+<style>
+body { margin:0; font-family: Arial, sans-serif; }
+.top-nav { display:flex; justify-content:flex-end; align-items:center; padding:10px 20px; background-color:#3e3333; gap:10px; }
+.top-nav input[type="text"] { width:265px; padding:8px 12px; border:1px solid #000; border-radius:4px; background-color:#1f0a0a; color:#fff; }
+.top-nav input[type="text"]::placeholder { color:#ccc; }
+.top-nav button { padding:8px 16px; border:none; border-radius:4px; cursor:pointer; }
+.search-btn { background-color:#e0e0e0; }
+.verify-btn { background-color:orange; color:white; }
+
+#news-container { display: flex; flex-direction: column; align-items: center; gap: 25px; padding: 40px 20px; }
+.news-card { display: flex; align-items: center; justify-content: flex-start; width: 750px; max-width: 95%; text-decoration: none; color: #000; background-color: #fff; border-radius: 12px; padding: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s ease; }
+.news-card img { width: 220px; height: 140px; object-fit: cover; border-radius: 8px; margin-right: 20px; }
+.news-card h4 { margin: 0; font-size: 18px; line-height: 1.4; }
+.news-card:hover { transform: translateY(-3px); }
+
+#result { padding: 20px; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="top-nav">
+  <input type="text" id="newsInput" placeholder="Search news...">
+  <button class="search-btn">Search</button>
+  <button class="verify-btn" onclick="verifyNews()">Verify Your News</button>
+</div>
+
+<div id="news-container"></div>
+<div id="result"></div>
+
+<script>
+async function loadNews() {
+  const response = await fetch("/get-news");
+  const data = await response.json();
+  const container = document.getElementById("news-container");
+  container.innerHTML = "";
+  data.articles.forEach(article => {
+    if (!article.urlToImage) return;
+    const card = document.createElement("a");
+    card.href = article.url;
+    card.target = "_blank";
+    card.className = "news-card";
+    card.innerHTML = `<img src="${article.urlToImage}" /><h4>${article.title}</h4>`;
+    container.appendChild(card);
+  });
+}
+loadNews();
+
+async function verifyNews() {
+    let text = document.getElementById("newsInput").value;
+    let response = await fetch("/verify", {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({text:text})
+    });
+    let data = await response.json();
+    document.getElementById("result").innerHTML =
+        `AI Result: ${data.ai_label} (${(data.confidence*100).toFixed(2)}%)<br>
+         Cross-check: ${data.cross_result}<br>
+         Sources found: ${data.cross_sources.join(", ")}`;
+}
+// Get references
+const newsInput = document.getElementById("newsInput");
+const searchBtn = document.querySelector(".search-btn");
+
+// Add click listener to the Search button
+searchBtn.addEventListener("click", () => {
+    const query = newsInput.value.trim();
+    loadNews(query);  // pass the query to loadNews
+});
+
+// Update loadNews function to accept a query
+async function loadNews(query = "") {
+    // If query is empty, fetch top headlines
+    const url = query
+        ? `/search-news?query=${encodeURIComponent(query)}`
+        : "/get-news";
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    const container = document.getElementById("news-container");
+    container.innerHTML = "";  // clear previous articles
+
+    data.articles.forEach(article => {
+        if (!article.urlToImage) return;  // skip if no image
+        const card = document.createElement("a");
+        card.href = article.url;
+        card.target = "_blank";
+        card.className = "news-card";
+        card.innerHTML = `<img src="${article.urlToImage}" /><h4>${article.title}</h4>`;
+        container.appendChild(card);
+    });
+}
+
+</script>
+
+</body>
+</html>
