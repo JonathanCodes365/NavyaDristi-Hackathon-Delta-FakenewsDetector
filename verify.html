@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fake News Verifier</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; }
+  .verdict-supported { color: green; font-weight: bold; }
+  .verdict-refuted { color: red; font-weight: bold; }
+  .verdict-inconclusive { color: orange; font-weight: bold; }
+  .evidence { margin-top: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+  .evidence a { color: blue; text-decoration: none; }
+</style>
+</head>
+<body>
+<h2>Fake News Verifier</h2>
+
+<label>Title:</label><br>
+<input type="text" id="title" size="50"><br><br>
+
+<label>Text (optional):</label><br>
+<textarea id="text" rows="5" cols="50"></textarea><br><br>
+
+<button onclick="verify()">Verify</button>
+
+<h3>Result:</h3>
+<div id="result"></div>
+
+<script>
+async function verify() {
+    const title = document.getElementById("title").value;
+    const text = document.getElementById("text").value;
+
+    const response = await fetch("http://localhost:8000/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, text })
+    });
+
+    const data = await response.json();
+    displayResult(data);
+}
+
+function displayResult(data) {
+    const container = document.getElementById("result");
+    container.innerHTML = ""; // clear previous result
+
+    // Verdict
+    let verdictColor = "verdict-inconclusive";
+    if (data.verdict === "supported") verdictColor = "verdict-supported";
+    else if (data.verdict === "refuted") verdictColor = "verdict-refuted";
+
+    const verdictEl = document.createElement("p");
+    verdictEl.innerHTML = `Verdict: <span class="${verdictColor}">${data.verdict.toUpperCase()}</span>`;
+    container.appendChild(verdictEl);
+
+    // Confidence
+    const confEl = document.createElement("p");
+    confEl.textContent = `Confidence: ${(data.confidence*100).toFixed(1)}%`;
+    container.appendChild(confEl);
+
+    // Top evidence
+    if (data.evidence && data.evidence.length) {
+        const evidenceHeader = document.createElement("h4");
+        evidenceHeader.textContent = "Top Evidence:";
+        container.appendChild(evidenceHeader);
+
+        data.evidence.forEach(ev => {
+            const evDiv = document.createElement("div");
+            evDiv.className = "evidence";
+            evDiv.innerHTML = `
+                <strong>${ev.stance.toUpperCase()}</strong> | 
+                <a href="${ev.url}" target="_blank">${ev.title}</a><br>
+                ${ev.snippet}
+            `;
+            container.appendChild(evDiv);
+        });
+    }
+}
+</script>
+</body>
+</html>
