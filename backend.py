@@ -50,7 +50,20 @@ def search_news():
         {"title": a.get("title"), "url": a.get("url"), "urlToImage": a.get("urlToImage")}
         for a in data.get("articles", [])
     ]
+    cached_articles = [
+    {
+        "title": a.get("title"),
+        "url": a.get("url"),
+        "urlToImage": a.get("urlToImage"),
+        "description": a.get("description") or a.get("title")  # fallback if description is null
+    }
+    for a in data.get("articles", [])
+]
+
     return jsonify({"articles": articles})
+
+
+
 
 
 @app.route("/verify", methods=["POST"])
