@@ -27,6 +27,27 @@ NEGATIVE_TERMS = {
 POP_CULTURE_TERMS = ["video game", "films", "songs", "television", "novel", "series", "movie", "fiction"]
 SCIENCE_TERMS = ["extraterrestrial", "ufo", "nasa", "seti", "astronomy", "planet", "life", "astrobiology"]
 
+from urllib.parse import urlparse
+
+def normalize_text(text: str) -> str:
+    """Lowercase, strip, and collapse whitespace."""
+    return " ".join((text or "").lower().strip().split())
+
+def normalize_url(url: str) -> str:
+    """Normalize URL by lowercasing domain, keeping path, dropping query/fragment, removing trailing slash."""
+    if not url:
+        return ""
+    parsed = urlparse(url)
+    path = parsed.path.rstrip("/")
+    return f"{parsed.scheme}://{parsed.netloc.lower()}{path}"
+
+def dedup_key(item: dict) -> str:
+    """Return a consistent key for deduplication."""
+    url = item.get("url", "")
+    if url:
+        return normalize_url(url)
+    return normalize_text(item.get("title", ""))
+
 # ------------------ Utilities ------------------
 def first_sentence(text: str) -> str:
     if not text:
@@ -268,7 +289,7 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
         }
 
     queries = build_queries(title or "", text or "")
-    seen_titles = set()
+    seen_keys = set()
     evidence = []
 
     if debug:
@@ -280,17 +301,17 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
 
         # --- Wikipedia ---
         wiki_titles = wiki_search(q, limit=max_pages_per_query, debug=debug)
-
         for t in wiki_titles:
-            if t in seen_titles:
-                continue
-            seen_titles.add(t)
-
             categories = wiki_categories(t)
             summ = wiki_summary(t, debug=debug)
 
             if not summ or not summ.get("snippet"):
                 continue
+
+            key = dedup_key(summ)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
 
             snippet_lower = summ["snippet"].lower()
 
@@ -298,7 +319,6 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
                 continue
 
             sim = cosine_sim(claim, summ["snippet"])
-
             if any(sc in snippet_lower for sc in SCIENCE_TERMS):
                 sim = min(1.0, sim + 0.03)
 
@@ -320,6 +340,11 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
             )
 
             for art in news_articles:
+                key = dedup_key(art)
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
+
                 sim = cosine_sim(claim, art["snippet"])
                 stance, score = simple_stance(claim, art["snippet"], sim)
 
@@ -335,10 +360,10 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
             rss_articles = rss_search(TRUSTED_RSS_FEEDS, limit=max_pages_per_query)
 
             for art in rss_articles:
-                key = (art.get("source", ""), art.get("title", ""))
-                if key in seen_titles:
+                key = dedup_key(art)
+                if key in seen_keys:
                     continue
-                seen_titles.add(key)
+                seen_keys.add(key)
 
                 sim = cosine_sim(claim, art["snippet"])
                 stance, score = simple_stance(claim, art["snippet"], sim)
@@ -364,6 +389,11 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
 
                 if not summ or not summ.get("snippet"):
                     continue
+
+                key = dedup_key(summ)
+                if key in seen_keys:
+                    continue
+                seen_keys.add(key)
 
                 sim = cosine_sim(claim, summ["snippet"])
                 stance, score = simple_stance(claim, summ["snippet"], sim)
