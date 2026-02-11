@@ -10,13 +10,12 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------ Config ------------------
 # Read GNews API key from environment (export GNEWS_API_KEY="...")
-GNEWS_API_KEY = os.getenv("e1b4f09b4268bed1020b09d3f1a7e410", "")
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")
 
 # Toggle filters and sources
 POP_CULTURE_FILTER = True  # Skip obvious pop-culture pages
 INCLUDE_RSS = True         # Add RSS evidence
-GNEWS_ENABLED = True       # Use GNews if key is present
-DEBUG = False              # Set True to print debug info
+GNEWS_ENABLED = True  # static config only (do NOT mutate)
 
 # ------------------ Static terms ------------------
 NEGATIVE_TERMS = {
@@ -56,7 +55,7 @@ def cosine_sim(a: str, b: str) -> float:
         return 0.0
 
 # ------------------ Wikipedia ------------------
-def wiki_search(query: str, limit: int = 5) -> List[str]:
+def wiki_search(query: str, limit: int = 5, debug: bool = False) -> List[str]:
     url = "https://en.wikipedia.org/w/api.php"
     params = {
         "action": "query",
@@ -66,17 +65,18 @@ def wiki_search(query: str, limit: int = 5) -> List[str]:
         "format": "json"
     }
     headers = {"User-Agent": "FakeNewsDetector/1.0"}
+
     try:
         r = requests.get(url, params=params, headers=headers, timeout=10)
         r.raise_for_status()
         data = r.json()
         return [item["title"] for item in data.get("query", {}).get("search", [])]
     except Exception as e:
-        if DEBUG:
+        if debug:
             print("wiki_search error:", e)
         return []
 
-def wiki_summary(title: str):
+def wiki_summary(title: str, debug: bool = False):
     url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
     headers = {"User-Agent": "FakeNewsDetector/1.0"}
     try:
@@ -91,8 +91,9 @@ def wiki_summary(title: str):
                    f"https://en.wikipedia.org/wiki/{quote(title)}"),
             "snippet": data.get("extract", "")
         }
+    
     except Exception as e:
-        if DEBUG:
+        if debug:
             print("wiki_summary error:", e)
         return None
 
@@ -122,12 +123,15 @@ def is_pop_culture(categories: List[str], snippet_lower: str) -> bool:
     return any(any(term in c for term in POP_CULTURE_TERMS) for c in categories) or \
            any(term in snippet_lower for term in POP_CULTURE_TERMS)
 
-# ------------------ GNews ------------------
-def gnews_search(query: str, max_results: int = 5, lang: str = "en", country: str = "us"):
-    if not GNEWS_ENABLED or not GNEWS_API_KEY:
-        if DEBUG:
-            print("GNews disabled or API key missing")
+def gnews_search(query: str, max_results: int = 5, lang: str = "en",
+                 country: str = "us", debug: bool = False):
+
+    # Check for missing API key
+    if not GNEWS_API_KEY:
+        if debug:
+            print("WARNING: GNews API key missing. GNews evidence will be skipped.")
         return []
+
     url = "https://gnews.io/api/v4/search"
     params = {
         "q": query,
@@ -136,23 +140,38 @@ def gnews_search(query: str, max_results: int = 5, lang: str = "en", country: st
         "max": max_results,
         "apikey": GNEWS_API_KEY
     }
+
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
+
+        if "errors" in data:
+            if debug:
+                print("GNews API error:", data["errors"])
+            return []
+
         articles = []
+
         for art in data.get("articles", []):
-            snippet = art.get("description") or art.get("content") or art.get("title", "")
+            snippet = (
+                art.get("description")
+                or art.get("content")
+                or art.get("title", "")
+            )
+
             articles.append({
                 "source": art.get("source", {}).get("name", ""),
                 "title": art.get("title", ""),
                 "url": art.get("url", ""),
                 "snippet": snippet
             })
+
         return articles
-    except Exception as e:
-        if DEBUG:
-            print("GNews API error:", e)
+
+    except requests.exceptions.RequestException as e:
+        if debug:
+            print("GNews HTTP request failed:", e)
         return []
 
 # ------------------ RSS ------------------
@@ -164,26 +183,37 @@ TRUSTED_RSS_FEEDS = [
     "http://feeds.nbcnews.com/feeds/worldnews"
 ]
 
-def rss_search(feed_urls: List[str], limit: int = 5):
+def rss_search(feed_urls: List[str], limit: int = 5, debug: bool = False):
     articles = []
+
     for url in feed_urls:
         try:
             feed = feedparser.parse(url)
             count = 0
+
             for entry in feed.entries:
                 if count >= limit:
                     break
-                snippet = entry.get("summary", entry.get("description", "")) or entry.get("title", "")
+
+                snippet = (
+                    entry.get("summary")
+                    or entry.get("description", "")
+                    or entry.get("title", "")
+                )
+
                 articles.append({
                     "source": feed.feed.get("title", "rss"),
                     "title": entry.get("title", ""),
                     "url": entry.get("link", ""),
                     "snippet": snippet
                 })
+
                 count += 1
+
         except Exception as e:
-            if DEBUG:
+            if debug:
                 print("RSS fetch error for", url, ":", e)
+
     return articles
 
 # ------------------ Stance and verdict ------------------
@@ -227,61 +257,84 @@ def compute_verdict(evidence: List[dict]) -> Tuple[str, float, List[dict]]:
 
 # ------------------ Main verify ------------------
 def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: bool = False):
-    global DEBUG
-    DEBUG = debug
 
     claim = title.strip() if title else first_sentence(text)
     if not claim:
-        return {"verdict": "inconclusive", "confidence": 0.0, "evidence": [], "debug": {"queries": []}}
+        return {
+            "verdict": "inconclusive",
+            "confidence": 0.0,
+            "evidence": [],
+            "debug": {"queries": []}
+        }
 
     queries = build_queries(title or "", text or "")
     seen_titles = set()
     evidence = []
 
-    if DEBUG:
+    if debug:
         print("Claim:", claim)
         print("Queries:", queries)
 
-    # For each query, gather Wikipedia and News evidence
+    # For each query
     for q in queries:
-        # --- Wikipedia (strict pass) ---
-        wiki_titles = wiki_search(q, limit=max_pages_per_query)
+
+        # --- Wikipedia ---
+        wiki_titles = wiki_search(q, limit=max_pages_per_query, debug=debug)
+
         for t in wiki_titles:
             if t in seen_titles:
                 continue
             seen_titles.add(t)
 
             categories = wiki_categories(t)
-            summ = wiki_summary(t)
+            summ = wiki_summary(t, debug=debug)
+
             if not summ or not summ.get("snippet"):
                 continue
 
             snippet_lower = summ["snippet"].lower()
 
-            # Pop-culture filter
             if POP_CULTURE_FILTER and is_pop_culture(categories, snippet_lower):
                 continue
 
             sim = cosine_sim(claim, summ["snippet"])
 
-            # Optional micro-boost if snippet looks scientific
             if any(sc in snippet_lower for sc in SCIENCE_TERMS):
                 sim = min(1.0, sim + 0.03)
 
             stance, score = simple_stance(claim, summ["snippet"], sim)
-            evidence.append({**summ, "stance": stance, "score": float(score), "similarity": float(sim)})
 
-        # --- GNews Evidence ---
+            evidence.append({
+                **summ,
+                "stance": stance,
+                "score": float(score),
+                "similarity": float(sim)
+            })
+
+        # --- GNews ---
         if GNEWS_ENABLED and GNEWS_API_KEY:
-            news_articles = gnews_search(q, max_results=max_pages_per_query)
+            news_articles = gnews_search(
+                q,
+                max_results=max_pages_per_query,
+                debug=debug
+            )
+
             for art in news_articles:
                 sim = cosine_sim(claim, art["snippet"])
                 stance, score = simple_stance(claim, art["snippet"], sim)
-                evidence.append({**art, "stance": stance, "score": float(score), "similarity": float(sim)})
 
-        # --- RSS Evidence ---
+                evidence.append({
+                    **art,
+                    "stance": stance,
+                    "score": float(score),
+                    "similarity": float(sim)
+                })
+
+        # --- RSS ---
         if INCLUDE_RSS:
-            for art in rss_search(TRUSTED_RSS_FEEDS, limit=max_pages_per_query):
+            rss_articles = rss_search(TRUSTED_RSS_FEEDS, limit=max_pages_per_query)
+
+            for art in rss_articles:
                 key = (art.get("source", ""), art.get("title", ""))
                 if key in seen_titles:
                     continue
@@ -289,32 +342,49 @@ def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: b
 
                 sim = cosine_sim(claim, art["snippet"])
                 stance, score = simple_stance(claim, art["snippet"], sim)
-                evidence.append({**art, "stance": stance, "score": float(score), "similarity": float(sim)})
 
-    # Fallback light Wikipedia pass
+                evidence.append({
+                    **art,
+                    "stance": stance,
+                    "score": float(score),
+                    "similarity": float(sim)
+                })
+
+    # --- Fallback Wikipedia pass ---
     if not any(e.get("source") == "wikipedia" for e in evidence):
-        if DEBUG:
-            print("No Wikipedia evidence found in strict pass; running light pass.")
+
+        if debug:
+            print("No Wikipedia evidence found. Running fallback pass.")
+
         for q in queries:
-            wiki_titles = wiki_search(q, limit=max_pages_per_query)
+            wiki_titles = wiki_search(q, limit=max_pages_per_query, debug=debug)
+
             for t in wiki_titles:
-                summ = wiki_summary(t)
+                summ = wiki_summary(t, debug=debug)
+
                 if not summ or not summ.get("snippet"):
                     continue
+
                 sim = cosine_sim(claim, summ["snippet"])
                 stance, score = simple_stance(claim, summ["snippet"], sim)
-                evidence.append({**summ, "stance": stance, "score": float(score), "similarity": float(sim)})
 
-    if DEBUG:
-        wiki_count = sum(1 for e in evidence if e.get("source") == "wikipedia")
-        news_count = sum(1 for e in evidence if e.get("source") not in ("wikipedia", "rss"))
-        rss_count  = sum(1 for e in evidence if e.get("source") and "rss" in e.get("source").lower())
-        print("DEBUG evidence count:", len(evidence), "wiki:", wiki_count, "news:", news_count, "rss:", rss_count)
+                evidence.append({
+                    **summ,
+                    "stance": stance,
+                    "score": float(score),
+                    "similarity": float(sim)
+                })
 
     if not evidence:
-        return {"verdict": "inconclusive", "confidence": 0.0, "evidence": [], "debug": {"queries": queries}}
+        return {
+            "verdict": "inconclusive",
+            "confidence": 0.0,
+            "evidence": [],
+            "debug": {"queries": queries}
+        }
 
     verdict, confidence, top_evidence = compute_verdict(evidence)
+
     return {
         "verdict": verdict,
         "confidence": confidence,
