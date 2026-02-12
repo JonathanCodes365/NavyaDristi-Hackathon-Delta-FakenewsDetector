@@ -1,82 +1,118 @@
-# verify.py
+# verify_article_improved.py - More Decisive Version
 import os
 import re
 import requests
-import feedparser
+import datetime
 from urllib.parse import quote
 from typing import List, Tuple
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 
 # ------------------ Config ------------------
-# Read GNews API key from environment (export GNEWS_API_KEY="...")
-GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "7c5375c69233f6a731714ab09584a219")
+GOOGLE_CSE_API_KEY = os.getenv("GOOGLE_CSE_API_KEY", "AIzaSyBypIQi0kJ4JsVwAdM15-ELWr7kmNVPyMA")
+GOOGLE_CSE_ENGINE_ID = os.getenv("GOOGLE_CSE_ENGINE_ID", "04ac3616a037847f6")
 
-# Toggle filters and sources
-POP_CULTURE_FILTER = True  # Skip obvious pop-culture pages
-INCLUDE_RSS = True         # Add RSS evidence
-GNEWS_ENABLED = True  # static config only (do NOT mutate)
+DEBUG = False
 
-# ------------------ Static terms ------------------
-NEGATIVE_TERMS = {
+# ------------------ ENHANCED Detection Terms ------------------
+# CRITICAL: These indicate the claim is FAKE/DEBUNKED
+STRONG_NEGATIVE_TERMS = {
     "false", "fake", "hoax", "debunked", "incorrect", "misinformation",
-    "pseudoscience", "conspiracy theory", "discredited", "fabricated",
-    "no evidence", "refute", "refuted", "not true", "myth", "disproved"
+    "disinformation", "fabricated", "no evidence", "refuted", "myth", 
+    "disproved", "fact check", "fact-check", "misleading", "unproven", 
+    "unverified", "baseless", "unfounded", "scam", "fraud", "untrue",
+    "falsely claims", "no proof", "discredited"
 }
 
-POP_CULTURE_TERMS = ["video game", "films", "songs", "television", "novel", "series", "movie", "fiction"]
-SCIENCE_TERMS = ["extraterrestrial", "ufo", "nasa", "seti", "astronomy", "planet", "life", "astrobiology"]
+# MODERATE: Suggest caution
+MODERATE_NEGATIVE_TERMS = {
+    "conspiracy theory", "pseudoscience", "rumor", "unconfirmed",
+    "alleged", "claims without", "not supported"
+}
 
-from urllib.parse import urlparse
+# POSITIVE: Indicate claim is TRUE/VERIFIED
+POSITIVE_TERMS = {
+    "confirmed", "verified", "proven", "established", "validated",
+    "documented", "evidence shows", "studies show", "research confirms",
+    "scientists confirm", "experts confirm", "officially", "peer-reviewed"
+}
 
-def normalize_text(text: str) -> str:
-    """Lowercase, strip, and collapse whitespace."""
-    return " ".join((text or "").lower().strip().split())
+# Fiction filters
+FICTION_TERMS = {
+    "video game", "films", "movie", "television", "novel", "series", "fiction",
+    "sci-fi", "fantasy", "superhero", "marvel", "dc comics", "anime", "manga",
+    "netflix", "streaming", "blockbuster", "box office", "trailer"
+}
 
-def normalize_url(url: str) -> str:
-    """Normalize URL by lowercasing domain, keeping path, dropping query/fragment, removing trailing slash."""
-    if not url:
-        return ""
-    parsed = urlparse(url)
-    path = parsed.path.rstrip("/")
-    return f"{parsed.scheme}://{parsed.netloc.lower()}{path}"
+# Trusted source domains
+TRUSTED_DOMAINS = {
+    "wikipedia.org", "britannica.com", "reuters.com", "apnews.com",
+    "bbc.com", "nature.com", "science.org", "nih.gov", "cdc.gov",
+    "who.int", "nasa.gov", "edu", "gov"
+}
 
-def dedup_key(item: dict) -> str:
-    """Return a consistent key for deduplication."""
-    url = item.get("url", "")
-    if url:
-        return normalize_url(url)
-    return normalize_text(item.get("title", ""))
+# ------------------ Content Classification ------------------
+def is_fiction_content(text: str, title: str = "") -> bool:
+    """Check if content is fiction/entertainment"""
+    combined = f"{title} {text}".lower()
+    fiction_count = sum(1 for term in FICTION_TERMS if term in combined)
+    return fiction_count >= 2
 
-# ------------------ Utilities ------------------
-def first_sentence(text: str) -> str:
-    if not text:
-        return ""
-    parts = re.split(r"[.!?]\s+", text.strip())
-    return parts[0] if parts else text.strip()
+def is_trusted_source(url: str) -> bool:
+    """Check if URL is from a trusted domain"""
+    url_lower = url.lower()
+    return any(domain in url_lower for domain in TRUSTED_DOMAINS)
 
-def build_queries(title: str, text: str, max_queries: int = 3) -> List[str]:
-    q = [title.strip()] if title else []
-    fs = first_sentence(text)
-    if fs and (not title or fs.lower() != title.lower()) and len(fs.split()) >= 4:
-        q.append(fs)
-    tokens = re.findall(r"[A-Za-z0-9]+", (title or fs).lower())
-    keywords = [t for t in tokens if len(t) > 3][:4]
-    if keywords and " ".join(keywords) not in q:
-        q.append(" ".join(keywords))
-    return q[:max_queries]
-
-def cosine_sim(a: str, b: str) -> float:
-    vec = TfidfVectorizer(stop_words="english", ngram_range=(1,2), max_features=5000)
+# ------------------ Google CSE Search ------------------
+def google_cse_search(query: str, max_results: int = 8):
+    """Search using Google Custom Search Engine"""
+    if not GOOGLE_CSE_API_KEY or not GOOGLE_CSE_ENGINE_ID:
+        if DEBUG:
+            print("⚠ Google CSE API key or Engine ID missing")
+        return []
+    
+    url = "https://customsearch.googleapis.com/customsearch/v1"
+    params = {
+        "key": GOOGLE_CSE_API_KEY,
+        "cx": GOOGLE_CSE_ENGINE_ID,
+        "q": query,
+        "num": min(max_results, 10)
+    }
+    
     try:
-        X = vec.fit_transform([a, b])
-        sim = cosine_similarity(X[0], X[1])[0][0]
-        return float(sim)
-    except ValueError:
-        return 0.0
+        response = requests.get(url, params=params, timeout=15)
+        response.raise_for_status()
+        data = response.json()
+        
+        articles = []
+        for item in data.get("items", [])[:max_results]:
+            title = item.get("title", "")
+            snippet = item.get("snippet", "")
+            url_link = item.get("link", "")
+            
+            # Filter fiction
+            if is_fiction_content(snippet, title):
+                if DEBUG:
+                    print(f"  ✗ Filtered (fiction): {title[:50]}...")
+                continue
+            
+            articles.append({
+                "source": item.get("displayLink", "Google Search"),
+                "title": title,
+                "url": url_link,
+                "snippet": snippet,
+                "is_trusted": is_trusted_source(url_link)
+            })
+        
+        return articles
+        
+    except Exception as e:
+        if DEBUG:
+            print(f"Google CSE error: {e}")
+        return []
 
-# ------------------ Wikipedia ------------------
-def wiki_search(query: str, limit: int = 5, debug: bool = False) -> List[str]:
+# ------------------ Wikipedia Search ------------------
+def wiki_search(query: str, limit: int = 3):
+    """Search Wikipedia"""
     url = "https://en.wikipedia.org/w/api.php"
     params = {
         "action": "query",
@@ -86,338 +122,375 @@ def wiki_search(query: str, limit: int = 5, debug: bool = False) -> List[str]:
         "format": "json"
     }
     headers = {"User-Agent": "FakeNewsDetector/1.0"}
-
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-        return [item["title"] for item in data.get("query", {}).get("search", [])]
-    except Exception as e:
-        if debug:
-            print("wiki_search error:", e)
-        return []
-
-def wiki_summary(title: str, debug: bool = False):
-    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
-    headers = {"User-Agent": "FakeNewsDetector/1.0"}
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        if r.status_code != 200:
-            return None
-        data = r.json()
-        return {
-            "source": "wikipedia",
-            "title": data.get("title", title),
-            "url": data.get("content_urls", {}).get("desktop", {}).get("page",
-                   f"https://en.wikipedia.org/wiki/{quote(title)}"),
-            "snippet": data.get("extract", "")
-        }
     
-    except Exception as e:
-        if debug:
-            print("wiki_summary error:", e)
-        return None
-
-def wiki_categories(title: str) -> List[str]:
-    url = "https://en.wikipedia.org/w/api.php"
-    params = {
-        "action": "query",
-        "prop": "categories",
-        "titles": title,
-        "format": "json",
-        "cllimit": "max"
-    }
-    headers = {"User-Agent": "FakeNewsDetector/1.0"}
     try:
         r = requests.get(url, params=params, headers=headers, timeout=10)
-        data = r.json()
-    except Exception:
-        return []
-    pages = data.get("query", {}).get("pages", {})
-    categories = []
-    for p in pages.values():
-        for c in p.get("categories", []):
-            categories.append(c.get("title", "").lower())
-    return categories
-
-def is_pop_culture(categories: List[str], snippet_lower: str) -> bool:
-    return any(any(term in c for term in POP_CULTURE_TERMS) for c in categories) or \
-           any(term in snippet_lower for term in POP_CULTURE_TERMS)
-
-def gnews_search(query: str, max_results: int = 5, lang: str = "en",
-                 country: str = "us", debug: bool = False):
-
-    # Check for missing API key
-    if not GNEWS_API_KEY:
-        if debug:
-            print("WARNING: GNews API key missing. GNews evidence will be skipped.")
-        return []
-
-    url = "https://gnews.io/api/v4/search"
-    params = {
-        "q": query,
-        "lang": lang,
-        "country": country,
-        "max": max_results,
-        "apikey": GNEWS_API_KEY
-    }
-
-    try:
-        r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
-
-        if "errors" in data:
-            if debug:
-                print("GNews API error:", data["errors"])
-            return []
-
-        articles = []
-
-        for art in data.get("articles", []):
-            snippet = (
-                art.get("description")
-                or art.get("content")
-                or art.get("title", "")
-            )
-
-            articles.append({
-                "source": art.get("source", {}).get("name", ""),
-                "title": art.get("title", ""),
-                "url": art.get("url", ""),
-                "snippet": snippet
-            })
-
-        return articles
-
-    except requests.exceptions.RequestException as e:
-        if debug:
-            print("GNews HTTP request failed:", e)
+        
+        results = []
+        for item in data.get("query", {}).get("search", []):
+            title = item["title"]
+            # Get summary
+            summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}"
+            summary_resp = requests.get(summary_url, headers=headers, timeout=10)
+            
+            if summary_resp.status_code == 200:
+                summary_data = summary_resp.json()
+                snippet = summary_data.get("extract", "")
+                
+                # Filter fiction
+                if is_fiction_content(snippet, title):
+                    continue
+                
+                results.append({
+                    "source": "Wikipedia",
+                    "title": title,
+                    "url": summary_data.get("content_urls", {}).get("desktop", {}).get("page", ""),
+                    "snippet": snippet,
+                    "is_trusted": True
+                })
+        
+        return results
+    except Exception as e:
+        if DEBUG:
+            print(f"Wikipedia error: {e}")
         return []
 
-# ------------------ RSS ------------------
-TRUSTED_RSS_FEEDS = [
-    "http://rss.cnn.com/rss/cnn_topstories.rss",
-    "http://feeds.bbci.co.uk/news/rss.xml",
-    "http://feeds.reuters.com/reuters/worldNews",
-    "http://feeds.abcnews.com/abcnews/usheadlines",
-    "http://feeds.nbcnews.com/feeds/worldnews"
-]
+# ------------------ IMPROVED Stance Detection ------------------
+def analyze_evidence(claim: str, snippet: str, source: str, is_trusted: bool) -> dict:
+    """
+    Analyze evidence and determine stance with improved scoring
+    """
+    text_lower = snippet.lower()
+    claim_lower = claim.lower()
+    
+    # Count different types of terms
+    strong_negative = sum(1 for term in STRONG_NEGATIVE_TERMS if term in text_lower)
+    moderate_negative = sum(1 for term in MODERATE_NEGATIVE_TERMS if term in text_lower)
+    positive = sum(1 for term in POSITIVE_TERMS if term in text_lower)
+    
+    # Calculate relevance (simple keyword matching)
+    claim_words = set(re.findall(r'\b\w+\b', claim_lower))
+    snippet_words = set(re.findall(r'\b\w+\b', text_lower))
+    common_words = claim_words & snippet_words
+    relevance = len(common_words) / max(len(claim_words), 1)
+    
+    # Boost for trusted sources
+    trust_multiplier = 1.3 if is_trusted else 1.0
+    
+    # Determine stance and score
+    base_score = relevance * 0.5
+    
+    # REFUTED (Fake)
+    if strong_negative >= 2 or (strong_negative >= 1 and relevance > 0.3):
+        stance = "refuted"
+        score = (0.7 + (strong_negative * 0.1)) * trust_multiplier
+        
+    # REFUTED (Moderate)
+    elif strong_negative >= 1 or moderate_negative >= 2:
+        stance = "refuted"
+        score = (0.5 + (strong_negative * 0.1)) * trust_multiplier
+        
+    # SUPPORTED (Strong)
+    elif positive >= 2 and strong_negative == 0:
+        stance = "supported"
+        score = (0.7 + (positive * 0.05)) * trust_multiplier
+        
+    # SUPPORTED (Moderate) - trusted source, no negatives, decent relevance
+    elif is_trusted and strong_negative == 0 and relevance > 0.4:
+        stance = "supported"
+        score = (0.5 + relevance) * trust_multiplier
+        
+    # SUPPORTED (Weak) - some relevance, no strong negatives
+    elif relevance > 0.5 and strong_negative == 0:
+        stance = "supported"
+        score = (0.3 + relevance) * trust_multiplier
+        
+    # INCONCLUSIVE
+    else:
+        stance = "inconclusive"
+        score = base_score
+    
+    if DEBUG:
+        print(f"    Analysis: stance={stance}, score={score:.3f}, relevance={relevance:.3f}")
+        print(f"      Strong neg={strong_negative}, Mod neg={moderate_negative}, Pos={positive}")
+    
+    return {
+        "stance": stance,
+        "score": min(1.0, score),  # Cap at 1.0
+        "relevance": relevance,
+        "strong_negative": strong_negative,
+        "positive": positive
+    }
 
-def rss_search(feed_urls: List[str], limit: int = 5, debug: bool = False):
-    articles = []
+# ------------------ Build Queries ------------------
+def build_queries(title: str, text: str) -> List[str]:
+    """Build search queries from claim"""
+    queries = []
+    
+    # Main query: the claim itself
+    if title:
+        queries.append(title.strip())
+    
+    # Add fact-check queries
+    if title:
+        queries.append(f"{title.strip()} fact check")
+        queries.append(f"is {title.strip()} true")
+    
+    return queries[:3]  # Max 3 queries
 
-    for url in feed_urls:
-        try:
-            feed = feedparser.parse(url)
-            count = 0
-
-            for entry in feed.entries:
-                if count >= limit:
-                    break
-
-                snippet = (
-                    entry.get("summary")
-                    or entry.get("description", "")
-                    or entry.get("title", "")
-                )
-
-                articles.append({
-                    "source": feed.feed.get("title", "rss"),
-                    "title": entry.get("title", ""),
-                    "url": entry.get("link", ""),
-                    "snippet": snippet
-                })
-
-                count += 1
-
-        except Exception as e:
-            if debug:
-                print("RSS fetch error for", url, ":", e)
-
-    return articles
-
-# ------------------ Stance and verdict ------------------
-def simple_stance(claim: str, snippet: str, sim: float, sim_thresh: float = 0.15) -> Tuple[str, float]:
-    text = (snippet or "").lower()
-    has_neg = any(term in text for term in NEGATIVE_TERMS)
-
-    if has_neg and sim >= 0.12:
-        return "refuted", min(0.9, 0.5 + sim)
-
-    if sim >= sim_thresh:
-        return "supported", min(0.85, 0.4 + sim)
-
-    return "inconclusive", max(0.35, sim)
-
+# ------------------ IMPROVED Verdict Computation ------------------
 def compute_verdict(evidence: List[dict]) -> Tuple[str, float, List[dict]]:
+    """
+    Compute final verdict with more decisive thresholds
+    """
+    if not evidence:
+        return "inconclusive", 0.0, []
+    
+    # Sort by score
     evidence_sorted = sorted(
         evidence,
-        key=lambda e: (e.get("score", 0.0), e.get("similarity", 0.0)),
+        key=lambda e: e.get("score", 0.0),
         reverse=True
     )
-    top = evidence_sorted[:5]
-
-    support = sum(e.get("score", 0.0) for e in top if e.get("stance") == "supported")
-    refute  = sum(e.get("score", 0.0) for e in top if e.get("stance") == "refuted")
-    total   = max(1e-6, support + refute)
-
-    if support > refute * 1.3 and support > 0.5:
-        verdict = "supported"
-    elif refute > support * 1.3 and refute > 0.5:
-        verdict = "refuted"
+    
+    # Consider top 10 pieces of evidence
+    top = evidence_sorted[:10]
+    
+    # Calculate totals
+    support_score = sum(e.get("score", 0.0) for e in top if e.get("stance") == "supported")
+    refute_score = sum(e.get("score", 0.0) for e in top if e.get("stance") == "refuted")
+    total_score = support_score + refute_score
+    
+    # Count evidence pieces
+    support_count = sum(1 for e in top if e.get("stance") == "supported")
+    refute_count = sum(1 for e in top if e.get("stance") == "refuted")
+    
+    if DEBUG:
+        print(f"\n  Verdict Calculation:")
+        print(f"    Support score: {support_score:.3f} (count: {support_count})")
+        print(f"    Refute score: {refute_score:.3f} (count: {refute_count})")
+        print(f"    Total score: {total_score:.3f}")
+    
+    # IMPROVED DECISION LOGIC
+    
+    # No meaningful evidence
+    if total_score < 0.5:
+        return "inconclusive", 0.5, top
+    
+    # Calculate ratios
+    if total_score > 0:
+        refute_ratio = refute_score / total_score
+        support_ratio = support_score / total_score
     else:
+        refute_ratio = 0
+        support_ratio = 0
+    
+    # REFUTED (Fake) - More decisive
+    # If we have ANY strong refutation evidence, lean toward fake
+    if refute_score > 0.8:  # Strong refutation
+        verdict = "refuted"
+        confidence = min(0.95, 0.7 + refute_score * 0.2)
+        
+    elif refute_ratio > 0.4 and refute_score > 0.3:  # Moderate refutation
+        verdict = "refuted"
+        confidence = min(0.85, 0.6 + refute_ratio * 0.2)
+        
+    # SUPPORTED (Accurate) - More decisive
+    # If we have good support and little/no refutation, mark as accurate
+    elif support_score > 1.2:  # Strong support
+        verdict = "supported"
+        confidence = min(0.95, 0.7 + support_score * 0.1)
+        
+    elif support_ratio > 0.6 and support_score > 0.5:  # Moderate support
+        verdict = "supported"
+        confidence = min(0.85, 0.6 + support_ratio * 0.2)
+        
+    # MIXED SIGNALS - Be careful
+    elif abs(support_score - refute_score) < 0.3:
         verdict = "inconclusive"
+        confidence = 0.5
+        
+    # DEFAULT: Go with the stronger side
+    elif support_score > refute_score:
+        verdict = "supported"
+        confidence = 0.6 + (support_ratio * 0.2)
+    else:
+        verdict = "refuted"
+        confidence = 0.6 + (refute_ratio * 0.2)
+    
+    if DEBUG:
+        print(f"    Final: {verdict} (confidence: {confidence:.3f})")
+    
+    return verdict, float(confidence), top
 
-    confidence = min(0.95, max(0.5, abs(support - refute) / (total + 1e-6)))
-    top_for_output = [
-        {k: v for k, v in e.items() if k in ("source", "title", "url", "snippet", "stance", "score")}
-        for e in top
-    ]
-    return verdict, float(confidence), top_for_output
-
-# ------------------ Main verify ------------------
-def verify_article(title: str, text: str, max_pages_per_query: int = 3, debug: bool = False):
-
-    claim = title.strip() if title else first_sentence(text)
+# ------------------ MAIN VERIFICATION ------------------
+def verify_article(title: str, text: str, max_pages_per_query: int = 5, debug: bool = False):
+    """
+    Main verification function with improved decision making
+    """
+    global DEBUG
+    DEBUG = debug
+    
+    claim = title.strip() if title else ""
     if not claim:
         return {
             "verdict": "inconclusive",
             "confidence": 0.0,
             "evidence": [],
-            "debug": {"queries": []}
+            "debug": {"queries": [], "reason": "No claim provided"}
         }
-
-    queries = build_queries(title or "", text or "")
-    seen_keys = set()
-    evidence = []
-
-    if debug:
-        print("Claim:", claim)
-        print("Queries:", queries)
-
-    # For each query
-    for q in queries:
-
-        # --- Wikipedia ---
-        wiki_titles = wiki_search(q, limit=max_pages_per_query, debug=debug)
-        for t in wiki_titles:
-            categories = wiki_categories(t)
-            summ = wiki_summary(t, debug=debug)
-
-            if not summ or not summ.get("snippet"):
+    
+    if DEBUG:
+        print("=" * 70)
+        print("FAKE NEWS DETECTOR - IMPROVED DECISIVE VERSION")
+        print("=" * 70)
+        print(f"Claim: {claim}")
+        print("=" * 70)
+    
+    # Build queries
+    queries = build_queries(claim, text)
+    
+    all_evidence = []
+    seen_urls = set()
+    
+    for q_idx, q in enumerate(queries, 1):
+        if DEBUG:
+            print(f"\n[Query {q_idx}/{len(queries)}]: {q}")
+        
+        # 1. Wikipedia Search
+        wiki_results = wiki_search(q, limit=3)
+        for result in wiki_results:
+            url = result.get("url", "")
+            if url in seen_urls:
                 continue
-
-            key = dedup_key(summ)
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-
-            snippet_lower = summ["snippet"].lower()
-
-            if POP_CULTURE_FILTER and is_pop_culture(categories, snippet_lower):
-                continue
-
-            sim = cosine_sim(claim, summ["snippet"])
-            if any(sc in snippet_lower for sc in SCIENCE_TERMS):
-                sim = min(1.0, sim + 0.03)
-
-            stance, score = simple_stance(claim, summ["snippet"], sim)
-
-            evidence.append({
-                **summ,
-                "stance": stance,
-                "score": float(score),
-                "similarity": float(sim)
-            })
-
-        # --- GNews ---
-        if GNEWS_ENABLED and GNEWS_API_KEY:
-            news_articles = gnews_search(
-                q,
-                max_results=max_pages_per_query,
-                debug=debug
+            seen_urls.add(url)
+            
+            analysis = analyze_evidence(
+                claim=claim,
+                snippet=result["snippet"],
+                source=result["source"],
+                is_trusted=True
             )
-
-            for art in news_articles:
-                key = dedup_key(art)
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
-
-                sim = cosine_sim(claim, art["snippet"])
-                stance, score = simple_stance(claim, art["snippet"], sim)
-
-                evidence.append({
-                    **art,
-                    "stance": stance,
-                    "score": float(score),
-                    "similarity": float(sim)
-                })
-
-        # --- RSS ---
-        if INCLUDE_RSS:
-            rss_articles = rss_search(TRUSTED_RSS_FEEDS, limit=max_pages_per_query)
-
-            for art in rss_articles:
-                key = dedup_key(art)
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
-
-                sim = cosine_sim(claim, art["snippet"])
-                stance, score = simple_stance(claim, art["snippet"], sim)
-
-                evidence.append({
-                    **art,
-                    "stance": stance,
-                    "score": float(score),
-                    "similarity": float(sim)
-                })
-
-    # --- Fallback Wikipedia pass ---
-    if not any(e.get("source") == "wikipedia" for e in evidence):
-
-        if debug:
-            print("No Wikipedia evidence found. Running fallback pass.")
-
-        for q in queries:
-            wiki_titles = wiki_search(q, limit=max_pages_per_query, debug=debug)
-
-            for t in wiki_titles:
-                summ = wiki_summary(t, debug=debug)
-
-                if not summ or not summ.get("snippet"):
-                    continue
-
-                key = dedup_key(summ)
-                if key in seen_keys:
-                    continue
-                seen_keys.add(key)
-
-                sim = cosine_sim(claim, summ["snippet"])
-                stance, score = simple_stance(claim, summ["snippet"], sim)
-
-                evidence.append({
-                    **summ,
-                    "stance": stance,
-                    "score": float(score),
-                    "similarity": float(sim)
-                })
-
-    if not evidence:
+            
+            all_evidence.append({
+                **result,
+                **analysis
+            })
+            
+            if DEBUG:
+                print(f"  ✓ Wiki: {result['title'][:50]}...")
+        
+        # 2. Google CSE Search
+        cse_results = google_cse_search(q, max_results=max_pages_per_query)
+        for result in cse_results:
+            url = result.get("url", "")
+            if url in seen_urls:
+                continue
+            seen_urls.add(url)
+            
+            analysis = analyze_evidence(
+                claim=claim,
+                snippet=result["snippet"],
+                source=result["source"],
+                is_trusted=result.get("is_trusted", False)
+            )
+            
+            all_evidence.append({
+                **result,
+                **analysis
+            })
+            
+            if DEBUG:
+                print(f"  ✓ CSE: {result['title'][:50]}...")
+    
+    # Compute verdict
+    if not all_evidence:
+        if DEBUG:
+            print("\n❌ No evidence found!")
         return {
             "verdict": "inconclusive",
             "confidence": 0.0,
             "evidence": [],
-            "debug": {"queries": queries}
+            "debug": {
+                "queries": queries,
+                "reason": "No evidence found"
+            }
         }
-
-    verdict, confidence, top_evidence = compute_verdict(evidence)
-
-    return {
+    
+    verdict, confidence, top_evidence = compute_verdict(all_evidence)
+    
+    # Format evidence for output
+    formatted_evidence = []
+    for e in top_evidence:
+        formatted_evidence.append({
+            "source": e.get("source", "Unknown"),
+            "title": e.get("title", ""),
+            "url": e.get("url", ""),
+            "snippet": e.get("snippet", "")[:200],  # Truncate long snippets
+            "stance": e.get("stance", "inconclusive"),
+            "score": round(e.get("score", 0), 3),
+            "relevance": round(e.get("relevance", 0), 3)
+        })
+    
+    result = {
         "verdict": verdict,
         "confidence": confidence,
-        "evidence": top_evidence,
-        "debug": {"queries": queries}
+        "evidence": formatted_evidence,
+        "debug": {
+            "queries": queries,
+            "total_evidence": len(all_evidence),
+            "top_evidence_count": len(formatted_evidence)
+        }
     }
+    
+    if DEBUG:
+        print("\n" + "=" * 70)
+        print("FINAL RESULT")
+        print("=" * 70)
+        print(f"Verdict: {verdict.upper()}")
+        print(f"Confidence: {confidence:.1%}")
+        print(f"Total evidence: {len(all_evidence)}")
+        print(f"\nTop 5 Evidence:")
+        for i, e in enumerate(formatted_evidence[:5], 1):
+            print(f"  {i}. [{e['stance'].upper()}] {e['source']}")
+            print(f"     Score: {e['score']:.3f} | {e['title'][:60]}...")
+        print("=" * 70)
+    
+    return result
+
+# ------------------ Main ------------------
+if __name__ == "__main__":
+    import sys
+    
+    # Test cases
+    test_claims = [
+        ("Vaccines cause autism", False),
+        ("Earth orbits the Sun", True),
+        ("COVID-19 vaccines contain microchips", False),
+        ("Climate change is real", True),
+        ("5G causes coronavirus", False),
+    ]
+    
+    print("\n" + "=" * 70)
+    print("TESTING VERIFICATION SYSTEM")
+    print("=" * 70)
+    
+    for claim, expected_true in test_claims:
+        print(f"\n\nTesting: {claim}")
+        print(f"Expected: {'ACCURATE' if expected_true else 'FAKE'}")
+        print("-" * 70)
+        
+        result = verify_article(claim, "", debug=False)
+        
+        verdict = result["verdict"]
+        confidence = result["confidence"]
+        
+        print(f"Result: {verdict.upper()} ({confidence:.1%} confidence)")
+        
+        # Check if correct
+        is_correct = (expected_true and verdict == "supported") or \
+                     (not expected_true and verdict == "refuted")
+        
+        print(f"Status: {'✓ CORRECT' if is_correct else '✗ INCORRECT'}")
