@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NewsLinks - Home</title>
+    <title>NewsLens - Home</title>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -225,7 +225,7 @@
 <body>
 
 <header>
-    <h1>NewsLinks</h1>
+    <h1>NewsLens</h1>
     <nav>
         <div class="search-container">
             <input type="text" id="search-input" placeholder="Search articles...">
@@ -271,13 +271,19 @@
         });
     }
 
-    async function searchArticles() {
-        const query = document.getElementById('search-input').value.trim();
-        if (!query) return;
-        const response = await fetch(`/api/news?search=${encodeURIComponent(query)}&limit=12`);
+  async function searchArticles() {
+    const query = document.getElementById('search-input').value.trim();
+    if (!query) return;
+
+    try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
         const data = await response.json();
         displayNews(data.news);
+    } catch (error) {
+        console.error("Error fetching search results:", error);
     }
+}
+
 
     loadNews();
 </script>
