@@ -3,220 +3,328 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>News Frontend</title>
+<title>News Feed - Fake News Verifier</title>
 <style>
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background-color: #f5f5f5;
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    padding: 20px;
 }
 
-/* Top nav */
-.top-nav {
+/* Header */
+.header {
+    background: white;
+    padding: 15px 30px;
+    border-radius: 15px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+    margin-bottom: 30px;
     display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    padding: 10px 20px;
-    background-color: #3e3333;
-    gap: 10px;
-}
-
-.top-nav input[type="text"] {
-    width: 300px;
-    padding: 8px 12px;
-    border: 1px solid #000;
-    border-radius: 4px;
-    background-color: #1f0a0a;
-    color: #fff;
-}
-
-.top-nav input[type="text"]::placeholder {
-    color: #ccc;
-}
-
-.top-nav button {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.search-btn { background-color: #e0e0e0; }
-.verify-btn { background-color: orange; color: white; }
-
-/* News container */
-#news-container {
-    display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
     gap: 20px;
-    padding: 40px 20px;
 }
 
-/* News card */
-.news-card {
+.header h1 {
+    color: #667eea;
+    font-size: 24px;
+    white-space: nowrap;
+}
+
+.search-container {
+    flex: 1;
+    max-width: 500px;
     position: relative;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 12px 45px 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 25px;
+    font-size: 15px;
+    transition: 0.3s;
+}
+
+.search-container input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.search-btn {
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #667eea;
+    border: none;
+    color: white;
+    padding: 8px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.search-btn:hover {
+    background: #5568d3;
+}
+
+.verify-nav-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 25px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 14px;
+    white-space: nowrap;
+    transition: 0.3s;
+}
+
+.verify-nav-btn:hover {
+    background: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+}
+
+/* News Grid */
+.news-container {
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.news-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 25px;
+    padding: 10px;
+}
+
+/* News Card */
+.news-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
     display: flex;
-    align-items: center;
-    gap: 15px;
-    width: 750px;
-    max-width: 95%;
-    padding: 15px;
-    background-color: #fff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    text-decoration: none;
-    color: #000;
-    transition: transform 0.2s ease;
+    flex-direction: column;
 }
 
 .news-card:hover {
-    transform: translateY(-3px);
+    transform: translateY(-10px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.25);
 }
 
-/* Always visible thumbnail */
-.card-thumb {
-    width: 220px;
-    height: 140px;
+.news-card img {
+    width: 100%;
+    height: 200px;
     object-fit: cover;
-    border-radius: 8px;
 }
 
-.news-card h4 {
-    margin: 0;
-    font-size: 18px;
-}
-
-/* Hover tooltip in center */
-.hover-preview {
-    display: none;
-    position: absolute;
-    top: 50%;       /* center vertically relative to card */
-    left: 50%;      /* center horizontally */
-    transform: translate(-50%, -50%);
-    width: 400px;
-    background-color: rgba(0,0,0,0.95);
-    color: #fff;
-    padding: 15px;
-    border-radius: 8px;
-    z-index: 100;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-    text-align: left;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-
-/* Show tooltip on hover */
-.news-card:hover .hover-preview {
-    display: block;
-    opacity: 1;
-}
-
-/* Thumbnail inside tooltip */
-.hover-preview img {
-    width: 150px;
-    height: 100px;
-    object-fit: cover;
-    float: left;
-    margin-right: 10px;
-    border-radius: 6px;
-}
-
-/* Description inside tooltip */
-.hover-preview p {
-    font-size: 14px;
-    line-height: 1.4;
-    margin: 0;
-}
-
-#result {
+.news-card-content {
     padding: 20px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.news-source {
+    color: #667eea;
+    font-size: 12px;
     font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.news-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+.news-description {
+    color: #666;
+    font-size: 14px;
+    line-height: 1.6;
+    flex: 1;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.news-card-footer {
+    padding: 15px 20px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.read-more {
+    color: #667eea;
+    font-size: 14px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: 0.3s;
+}
+
+.read-more:hover {
+    color: #5568d3;
+}
+
+/* Loading */
+.loading {
+    text-align: center;
+    padding: 50px;
+    color: white;
+    font-size: 20px;
+}
+
+.no-results {
+    text-align: center;
+    padding: 50px;
+    color: white;
+    font-size: 18px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    margin: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .header {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .header h1 {
+        font-size: 20px;
+    }
+    
+    .search-container {
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .verify-nav-btn {
+        width: 100%;
+    }
+    
+    .news-grid {
+        grid-template-columns: 1fr;
+    }
 }
 </style>
 </head>
 <body>
-
-<!-- Top nav -->
-<div class="top-nav">
-    <input type="text" id="newsInput" placeholder="Search news ">
-    <button class="search-btn">Search</button>
-    <button class="verify-btn" onclick="verifyNews()">Verify Your News</button>
+<div class="header">
+    <h1>🔍 News Verifier</h1>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search news topics...">
+        <button class="search-btn" onclick="searchNews()">Search</button>
+    </div>
+    <button class="verify-nav-btn" onclick="window.location.href='/verify-page'">Verify Your News</button>
 </div>
 
-<!-- News cards -->
-<div id="news-container"></div>
-
-<!-- Verification result -->
-<div id="result"></div>
+<div class="news-container">
+    <div class="news-grid" id="newsGrid">
+        <div class="loading">Loading news...</div>
+    </div>
+</div>
 
 <script>
-// ------------------- Load news -------------------
-async function loadNews(query = "") {
-    const url = query ? `/search-news?query=${encodeURIComponent(query)}` : "/get-news";
-    const response = await fetch(url);
-    const data = await response.json();
-    const container = document.getElementById("news-container");
-    container.innerHTML = "";
-
-    data.articles.forEach(article => {
-        if (!article.urlToImage) return;
-
-        const card = document.createElement("a");
-        card.href = article.url;
-        card.target = "_blank";
-        card.className = "news-card";
-
-        // Inner HTML: always visible thumbnail + title + hover preview
-        card.innerHTML = `
-            <img src="${article.urlToImage}" class="card-thumb" />
-            <h4>${article.title}</h4>
-            <div class="hover-preview">
-                <img src="${article.urlToImage}" />
-                <p>${article.description ? article.description.substring(0,200) : article.title}</p>
-            </div>
-        `;
-        container.appendChild(card);
-    });
-}
-
-// Initial load
-loadNews();
-
-// ------------------- Search functionality -------------------
-const newsInput = document.getElementById("newsInput");
-const searchBtn = document.querySelector(".search-btn");
-searchBtn.addEventListener("click", () => {
-    const query = newsInput.value.trim();
-    loadNews(query);
+// Load news on page load
+window.addEventListener('DOMContentLoaded', function() {
+    loadNews();
 });
 
-// ------------------- Verify news -------------------
-async function verifyNews() {
-    const text = newsInput.value.trim();
-    if (!text) {
-        alert("Please enter some news text to verify!");
+// Load all news
+async function loadNews() {
+    const newsGrid = document.getElementById('newsGrid');
+    newsGrid.innerHTML = '<div class="loading">Loading news...</div>';
+    
+    try {
+        const response = await fetch('/api/news?limit=30');
+        const data = await response.json();
+        
+        if (data.news && data.news.length > 0) {
+            displayNews(data.news);
+        } else {
+            newsGrid.innerHTML = '<div class="no-results">No news articles found.</div>';
+        }
+    } catch (error) {
+        console.error('Error loading news:', error);
+        newsGrid.innerHTML = '<div class="no-results">Error loading news. Please try again later.</div>';
+    }
+}
+
+// Search news
+async function searchNews() {
+    const query = document.getElementById('searchInput').value.trim();
+    const newsGrid = document.getElementById('newsGrid');
+    
+    if (!query) {
+        loadNews();
         return;
     }
-
-    const response = await fetch("/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text })
-    });
-
-    const data = await response.json();
-
-    let html = `<strong>AI Verdict:</strong> ${data.ai_label} (${(data.confidence*100).toFixed(2)}%)<br>`;
-    html += "<strong>Evidence:</strong><ul>";
-    data.cross_result.forEach(([stance, title], i) => {
-        html += `<li>${stance.toUpperCase()} | <a href="${data.cross_sources[i]}" target="_blank">${title}</a></li>`;
-    });
-    html += "</ul>";
-
-    document.getElementById("result").innerHTML = html;
+    
+    newsGrid.innerHTML = '<div class="loading">Searching...</div>';
+    
+    try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        if (data.news && data.news.length > 0) {
+            displayNews(data.news);
+        } else {
+            newsGrid.innerHTML = '<div class="no-results">No results found for "' + query + '"</div>';
+        }
+    } catch (error) {
+        console.error('Error searching news:', error);
+        newsGrid.innerHTML = '<div class="no-results">Error searching. Please try again.</div>';
+    }
 }
-</script>
 
+// Display news articles
+function displayNews(articles) {
+    const newsGrid = document.getElementById('newsGrid');
+    newsGrid.innerHTML = '';
+    
+    articles.forEach(article => {
+        const thumbnailUrl = article.thumbnail || 'https://via.placeholder.com/350x200?text=No+Image';
+        
+        const card = document.createElement('div');
+        card.className = 'news-card';
+        card.innerHTML = `
+            <img src="${thumbnailUrl}" alt="${article.title}" onerror="this.src='https://via.placeholder.com/350x200?text=No+Image'">
+            <div class="news-card-content">
+                <div class="news-source">${article.source || 'Unknown Source'}</div>
+                <div class="news-title">${article.title}</div>
+                <div class="news-description">${article.description || 'No description available.'}</div>
+            </div>
+            <div class="news-card-footer">
+                <a href="${article.url}" target="_blank" class="read-more">Read More →</a>
+            </div>
+        `;
+        
+        newsGrid.appendChild(card);
+    });
+}
+
+// Search on Enter key
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        searchNews();
+    }
+});
+</script>
 </body>
 </html>
