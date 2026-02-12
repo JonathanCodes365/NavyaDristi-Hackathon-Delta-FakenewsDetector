@@ -3,214 +3,126 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Verify Your News</title>
-<style>
-    body {
-        font-family: Arial, sans-serif;
-        background: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        padding: 30px;
-        margin: 0;
-    }
-    .container {
-        background: white;
-        padding: 30px;
-        border-radius: 10px;
-        width: 700px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    h2 {
-        text-align: center;
-        color: #333;
-        margin-bottom: 20px;
-    }
-    input[type=text], textarea {
-        width: 100%;
-        padding: 12px;
-        margin: 10px 0;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-        box-sizing: border-box;
-    }
-    textarea {
-        resize: vertical;
-        min-height: 80px;
-    }
-    .button-group {
-        display: flex;
-        gap: 10px;
-        margin-top: 15px;
-    }
-    button {
-        flex: 1;
-        padding: 12px 20px;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: 14px;
-        transition: 0.3s;
-    }
-    .verify-btn {
-        background-color: #4CAF50;
-        color: white;
-    }
-    .verify-btn:hover {
-        background-color: #45a049;
-    }
-    .back-btn {
-        background-color: #007bff;
-        color: white;
-    }
-    .back-btn:hover {
-        background-color: #0056b3;
-    }
-    .result {
-        margin-top: 20px;
-        padding: 15px;
-        border-radius: 5px;
-        font-weight: bold;
-        text-align: center;
-    }
-    .real { background-color: #d4edda; color: #155724; }
-    .fake { background-color: #f8d7da; color: #721c24; }
-    .articles {
-        margin-top: 20px;
-    }
-    .articles h3 {
-        color: #333;
-        margin-bottom: 15px;
-    }
-    .article {
-        border: 1px solid #ddd;
-        padding: 12px;
-        border-radius: 5px;
-        margin-bottom: 12px;
-        display: flex;
-        gap: 12px;
-        background: #fafafa;
-        transition: 0.2s;
-    }
-    .article:hover {
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .article img {
-        width: 120px;
-        height: 90px;
-        object-fit: cover;
-        border-radius: 5px;
-        flex-shrink: 0;
-    }
-    .article-details {
-        flex: 1;
-    }
-    .article-title {
-        font-weight: bold;
-        margin: 0 0 8px 0;
-        font-size: 16px;
-    }
-    .article-title a {
-        color: #007bff;
-        text-decoration: none;
-    }
-    .article-title a:hover {
-        text-decoration: underline;
-    }
-    .article-description {
-        color: #555;
-        font-size: 14px;
-        margin: 0 0 8px 0;
-        line-height: 1.4;
-    }
-    .article-source {
-        font-size: 12px;
-        color: #777;
-        font-style: italic;
-    }
-    .no-articles {
-        text-align: center;
-        color: #999;
-        padding: 20px;
-        font-style: italic;
-    }
-</style>
+<title>NewsLens</title>
+
+<!-- Step 2: Modern font -->
+<link rel = "stylesheet" href = "style.css">
 </head>
 <body>
-<div class="container">
-    <h2>🔎 Verify Your News</h2>
-    <input type="text" id="claim" placeholder="Enter the news claim...">
-    <textarea id="additional_info" placeholder="Additional info (optional)"></textarea>
-    
-    <div class="button-group">
-        <button class="verify-btn" onclick="verifyNews()">Verify</button>
-        <button class="back-btn" onclick="window.location.href='/'">← Back to Home</button>
+
+<!-- ===== Step 4: Welcome overlay ===== -->
+<div id="welcome-overlay">
+    <div id="welcome-card">
+        <img src="logo.png" alt="NewsLens Logo">
+        <h1>Hey Player! You’re back</h1>
+        <p>Welcome to <strong>NewsLens</strong>!</p>
+        <button onclick="enterSite()">Yeah, I’m back</button>
     </div>
-    
-    <div id="result" class="result" style="display:none;"></div>
-    <div id="articles" class="articles"></div>
+</div>
+
+
+   <!-- ===== Step 2: Tutorial Overlay ===== -->
+<div id="tutorial-overlay">
+    <div id="tutorial-card">
+        <!-- Step 1 -->
+        <div class="step active" data-step="1">
+            <h2>Welcome to NewsLens!</h2>
+            <p>This tutorial will guide you through the app’s features.</p>
+        </div>
+        <!-- Step 2 -->
+        <div class="step" data-step="2">
+            <h2>Enter Your Claim</h2>
+            <p>Type any news claim in the input box to start verification.</p>
+        </div>
+        <!-- Step 3 -->
+        <div class="step" data-step="3">
+            <h2>Check Results</h2>
+            <p>Your claim will be analyzed and displayed as Real or Fake.</p>
+        </div>
+        <!-- Step 4 -->
+        <div class="step" data-step="4">
+            <h2>History</h2>
+            <p>All past claims are saved here for your reference.</p>
+        </div>
+
+        <!-- Navigation Buttons -->
+        <div class="tutorial-buttons">
+            <button id="backBtn">Back</button>
+            <button id="nextBtn">Next</button>
+            <button id="skipBtn">Skip Tutorial</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Step 1 & 3: Main News Verifier content ===== -->
+<div class="container" id="main-content">
+    <div class="input-area">
+        <input type="text" id="claimInput" placeholder="Enter your claim here...">
+        <button id="verifyBtn">Verify</button>
+    </div>
+    ...
+</div>
+
+    <div class="additional-info">
+        <textarea id="additionalInfo" placeholder="Additional info (optional)..."></textarea>
+    </div>
+
+    <div class="result-area" id="resultArea"></div>
+
+    <!-- Loading indicator -->
+    <div id="loading" style="display:none; text-align:center; margin-top:15px; font-size:16px; color:#555;">
+        ⏳ Verifying...
+    </div>
+
+    <!-- Step 3: History list -->
+    <div id="history-container" style="margin-top:20px;">
+        <h3 style="font-size:18px; color:#333;">Past Claims</h3>
+        <ul id="history" style="list-style-type:none; padding-left:0;"></ul>
+    </div>
 </div>
 
 <script>
-function verifyNews() {
-    const claim = document.getElementById("claim").value;
-    const additional_info = document.getElementById("additional_info").value;
+/* ===== Step 4: Welcome overlay logic ===== */
+// Step 1: Detect if user is first-time
+window.addEventListener("DOMContentLoaded", () => {
+    const tutorialCompleted = localStorage.getItem("tutorialCompleted");
 
-    if (!claim) {
-        alert("Please enter a claim to verify.");
-        return;
+    if (!tutorialCompleted) {
+        // First-time user: hide main content
+        document.getElementById('main-content').style.display = 'none';
+        // We'll show tutorial overlay in Step 2
+        console.log("First-time user detected");
+    } else {
+        // Returning user: show main content immediately
+        document.getElementById('main-content').style.display = 'block';
     }
+});
 
-    const resultDiv = document.getElementById("result");
-    resultDiv.style.display = "block";
-    resultDiv.className = "result";
-    resultDiv.innerHTML = "Verifying... please wait.";
-
-    fetch("/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ claim, additional_info })
-    })
-    .then(res => res.json())
-    .then(data => {
-        resultDiv.className = 'result ' + (data.result === "Real" ? "real" : "fake");
-        resultDiv.innerHTML = `<strong>Claim is: ${data.result}</strong><br>Probability of being FAKE: ${data.percentage}%`;
-
-        const articlesDiv = document.getElementById("articles");
-        articlesDiv.innerHTML = "";
-
-        if (data.articles && data.articles.length > 0) {
-            articlesDiv.innerHTML = "<h3>📰 Related Articles:</h3>";
-            
-            data.articles.forEach(article => {
-                const thumbnailUrl = article.thumbnail || 'https://via.placeholder.com/120x90?text=No+Image';
-                
-                articlesDiv.innerHTML += `
-                    <div class="article">
-                        <img src="${thumbnailUrl}" alt="thumbnail" onerror="this.src='https://via.placeholder.com/120x90?text=No+Image'">
-                        <div class="article-details">
-                            <p class="article-title"><a href="${article.url}" target="_blank">${article.title}</a></p>
-                            <p class="article-description">${article.description}</p>
-                            <p class="article-source">Source: ${article.source}</p>
-                        </div>
-                    </div>
-                `;
-            });
-        } else {
-            articlesDiv.innerHTML = "<div class='no-articles'>No matching articles found in database.</div>";
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        resultDiv.className = "result fake";
-        resultDiv.innerHTML = "Error verifying claim. Please try again later.";
-    });
+function enterSite() {
+    document.getElementById('welcome-overlay').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
 }
 
-// Press Enter to submit
-document.getElementById("claim").addEventListener("keypress", function(e) {
-    if (e.key === "Enter") verifyNews();
+/* ===== Step 5: Result fade-in logic ===== */
+const resultArea = document.getElementById('resultArea');
+
+function showResult(result) {
+    resultArea.classList.remove('show'); // reset fade
+    setTimeout(() => {
+        resultArea.innerHTML = `<span class="${result === 'Real' ? 'green' : 'red'}">${result}</span>`;
+        resultArea.classList.add('show');
+    }, 50);
+}
+
+/* ===== Demo Verify button logic ===== */
+document.getElementById('verifyBtn').addEventListener('click', async function() {
+    const claim = document.getElementById('claimInput').value.trim();
+    if (!claim) return;
+    // Normally call your backend API here
+    const verdict = Math.random() > 0.5 ? 'Real' : 'Fake'; // demo
+    showResult(verdict);
 });
 </script>
+
 </body>
 </html>
