@@ -1,3 +1,4 @@
+# app.py - FIXED VERSION WITH NEPAL SOURCES & LIVE NEWS WIDGET
 
 from flask import Flask, request, jsonify, render_template
 import pandas as pd
@@ -8,7 +9,7 @@ import string
 import joblib
 from difflib import SequenceMatcher
 
-# FIXED IMPORT - Use the correct module name
+# ---------------- Verification Module ----------------
 try:
     from verify_article1 import verify_article
     VERIFY_MODULE_AVAILABLE = True
@@ -20,9 +21,9 @@ except ImportError:
 app = Flask(__name__)
 
 # ---------------- Configuration ----------------
-NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "947f0e92eefd464caab081103c41bbc7")
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "2a545d0a809240aca808f97e53cd68fd")
 
-# Load model and vectorizer (optional)
+# ---------------- Load ML Model ----------------
 try:
     model = joblib.load("lr.model.jb")
     vectorizer = joblib.load("vectorizer.jb")
@@ -32,7 +33,7 @@ except Exception as e:
     ML_MODEL_AVAILABLE = False
     print("⚠ ML model not loaded:", e)
 
-# Load smart news CSV
+# ---------------- Load News CSV ----------------
 try:
     NEWS = pd.read_csv("smart_news.csv")
     for col in ['title', 'description', 'url', 'thumbnail', 'source']:
@@ -43,7 +44,7 @@ except Exception as e:
     NEWS = pd.DataFrame()
     print("⚠ Could not load smart_news.csv:", e)
 
-# ---------------- Text cleaning ----------------
+# ---------------- Text Cleaning ----------------
 def clean_text(text):
     text = str(text).lower()
     text = re.sub(r'\[.*?\]', '', text)
@@ -57,7 +58,6 @@ def clean_text(text):
 
 # ---------------- CSV Matching ----------------
 def get_article_by_claim(claim_text, threshold=0.5):
-    """Fuzzy match against local CSV news"""
     if NEWS.empty:
         return []
     
@@ -77,16 +77,11 @@ def get_article_by_claim(claim_text, threshold=0.5):
                 "similarity": similarity
             })
     
-    # Sort by similarity
     matched_articles.sort(key=lambda x: x['similarity'], reverse=True)
     return matched_articles
 
-# ---------------- Main Verification Function ----------------
+# ---------------- Verification Function ----------------
 def verify_claim_comprehensive(claim_text):
-    """
-    Comprehensive verification with Nepal sources
-    """
-    
     results = {
         "verdict": "Uncertain",
         "confidence": 0.0,
@@ -96,24 +91,14 @@ def verify_claim_comprehensive(claim_text):
         "percentage": 50,
         "method": "unknown"
     }
-    
-    # PRIMARY: Try advanced verification module
+
+    # PRIMARY: Advanced verification with Nepal sources
     if VERIFY_MODULE_AVAILABLE:
         try:
-            print(f"\n{'='*70}")
-            print(f"VERIFYING CLAIM: {claim_text}")
-            
-            # Check if Nepal-related
             nepal_keywords = ["nepal", "kathmandu", "pokhara", "nepali", "nepalese", 
-                            "himalayan", "everest", "नेपाल"]
+                              "himalayan", "everest", "नेपाल"]
             is_nepal_related = any(kw in claim_text.lower() for kw in nepal_keywords)
             
-            if is_nepal_related:
-                print(f"🇳🇵 NEPAL-RELATED CLAIM DETECTED - Will search Nepali sources")
-            
-            print(f"{'='*70}")
-            
-            # Call the verification with Nepal support
             result = verify_article(
                 title=claim_text,
                 text="",
@@ -125,49 +110,30 @@ def verify_claim_comprehensive(claim_text):
             confidence = result.get("confidence", 0.0)
             evidence = result.get("evidence", [])
             
-            # Count Nepali sources in evidence
             nepali_sources = sum(1 for e in evidence if e.get("is_nepal", False))
             
-            print(f"\nVerification Result:")
-            print(f"  Verdict: {verdict}")
-            print(f"  Confidence: {confidence:.1%}")
-            print(f"  Evidence count: {len(evidence)}")
-            if nepali_sources > 0:
-                print(f"  🇳🇵 Nepali sources: {nepali_sources}/{len(evidence)}")
-            
-            # Convert verdict to our format
             if verdict == "refuted":
                 results["verdict"] = "Likely Fake"
                 results["percentage"] = int(confidence * 100)
             elif verdict == "supported":
                 results["verdict"] = "Likely Accurate"
-                # For "Likely Accurate", show the inverse percentage
-                # If confidence is 0.8 (80% confident it's accurate), show as 20% fake probability
                 results["percentage"] = 100 - int(confidence * 100)
             else:
-                if confidence > 0.5:
-                    results["verdict"] = "Uncertain (Leaning Fake)"
-                    results["percentage"] = 60
-                else:
-                    results["verdict"] = "Uncertain"
-                    results["percentage"] = 50
+                results["verdict"] = "Uncertain" if confidence <= 0.5 else "Uncertain (Leaning Fake)"
+                results["percentage"] = 50 if confidence <= 0.5 else 60
             
             results["confidence"] = confidence
             results["method"] = "verify_with_nepal_sources"
             
-            # Categorize evidence and highlight Nepali sources
             for e in evidence:
-                stance = e.get("stance", "inconclusive")
-                source = e.get("source", "Unknown")
-                
                 evidence_item = {
-                    "source": source,
+                    "source": e.get("source", "Unknown"),
                     "snippet": e.get("snippet", ""),
                     "url": e.get("url", ""),
                     "text": e.get("title", ""),
                     "is_nepali": e.get("is_nepal", False)
                 }
-                
+                stance = e.get("stance", "inconclusive")
                 if stance == "refuted":
                     results["refuting"].append(evidence_item)
                 elif stance == "supported":
@@ -175,29 +141,18 @@ def verify_claim_comprehensive(claim_text):
                 else:
                     results["neutral"].append(evidence_item)
             
-            # Boost confidence if we have Nepali sources on Nepal topics
             if is_nepal_related and nepali_sources >= 2:
                 if verdict == "refuted" and results["percentage"] < 70:
                     results["percentage"] = min(results["percentage"] + 10, 85)
                 elif verdict == "supported" and results["percentage"] > 30:
                     results["percentage"] = max(results["percentage"] - 10, 15)
-                print(f"  🎯 Nepal topic boost applied")
-            
-            print(f"\nFinal Results:")
-            print(f"  Verdict: {results['verdict']}")
-            print(f"  Percentage: {results['percentage']}%")
-            print(f"  Supporting: {len(results['supporting'])}")
-            print(f"  Refuting: {len(results['refuting'])}")
-            print(f"{'='*70}\n")
             
             return results
-            
+        
         except Exception as e:
-            print(f"❌ Error in verification: {e}")
-            import traceback
-            traceback.print_exc()
+            print("❌ Error in verification:", e)
             results["method"] = "verify_error"
-    
+
     # FALLBACK: ML model
     if results["method"] in ["unknown", "verify_error"] and ML_MODEL_AVAILABLE:
         try:
@@ -205,7 +160,6 @@ def verify_claim_comprehensive(claim_text):
             vec = vectorizer.transform([cleaned])
             pred = model.predict(vec)[0]
             proba = model.predict_proba(vec)[0]
-            
             ml_fake_prob = int(proba[0] * 100)
             
             results["percentage"] = ml_fake_prob
@@ -219,10 +173,9 @@ def verify_claim_comprehensive(claim_text):
                 results["verdict"] = "Uncertain"
             
             results["method"] = "ml_model"
-            print(f"Using ML model: {results['verdict']} ({ml_fake_prob}%)")
             
         except Exception as e:
-            print(f"ML model error: {e}")
+            print("ML model error:", e)
             results["method"] = "ml_error"
     
     # Add CSV matches
@@ -239,15 +192,12 @@ def verify_claim_comprehensive(claim_text):
     return results
 
 # ---------------- API Routes ----------------
-
 @app.route("/api/news", methods=["GET"])
 def get_news():
     if NEWS.empty:
         return jsonify({"news": []})
-    
     limit = request.args.get('limit', 20, type=int)
     news_data = []
-    
     for _, row in NEWS.head(limit).iterrows():
         news_data.append({
             "title": row['title'],
@@ -256,7 +206,6 @@ def get_news():
             "thumbnail": row['thumbnail'],
             "source": row['source']
         })
-    
     return jsonify({"news": news_data})
 
 @app.route("/api/search", methods=["GET"])
@@ -269,10 +218,8 @@ def search_news():
         url = f"https://newsapi.org/v2/everything?q={requests.utils.quote(query)}&language=en&pageSize=20&apiKey={NEWSAPI_KEY}"
         resp = requests.get(url, timeout=10)
         data = resp.json()
-        articles = data.get("articles", [])
-
         news_data = []
-        for article in articles:
+        for article in data.get("articles", []):
             news_data.append({
                 "title": article.get("title"),
                 "description": article.get("description") or "",
@@ -280,48 +227,77 @@ def search_news():
                 "thumbnail": article.get("urlToImage") or "https://via.placeholder.com/120x90?text=No+Image",
                 "source": article.get("source", {}).get("name","Unknown")
             })
-        
         return jsonify({"news": news_data})
     except Exception as e:
-        print("Error fetching news:", e)
+        print("Error fetching search news:", e)
         return jsonify({"news": []})
 
 @app.route("/api/live-news-widget", methods=["GET"])
 def live_news_widget():
+    """
+    Fetch live business/finance and tech news for the widget using NewsAPI only.
+    Ensures every article has a thumbnail.
+    """
     news_data = []
     try:
-        url_business = f"https://newsapi.org/v2/top-headlines?category=business&language=en&pageSize=5&apiKey={NEWSAPI_KEY}"
-        resp1 = requests.get(url_business, timeout=10).json()
-        url_tech = f"https://newsapi.org/v2/top-headlines?category=technology&language=en&pageSize=5&apiKey={NEWSAPI_KEY}"
+        # 1️⃣ Fetch finance/business news
+        url_finance = f"https://newsapi.org/v2/everything?q=finance OR business OR economy&language=en&pageSize=5&apiKey={NEWSAPI_KEY}"
+        resp1 = requests.get(url_finance, timeout=10).json()
+
+        # 2️⃣ Fetch technology news
+        url_tech = f"https://newsapi.org/v2/everything?q=technology OR AI OR gadgets&language=en&pageSize=5&apiKey={NEWSAPI_KEY}"
         resp2 = requests.get(url_tech, timeout=10).json()
 
-        all_articles = resp1.get("articles", []) + resp2.get("articles", [])
-        for article in all_articles:
+        # Combine results
+        articles = resp1.get("articles", []) + resp2.get("articles", [])
+
+        # Placeholder thumbnail
+        placeholder_thumb = "https://via.placeholder.com/120x90?text=No+Image"
+
+        # 3️⃣ Format for frontend
+        for article in articles:
+            thumbnail = article.get("urlToImage") or placeholder_thumb
             news_data.append({
-                "title": article.get("title"),
-                "url": article.get("url"),
-                "source": article.get("source", {}).get("name","Unknown"),
-                "description": article.get("description") or "",
-                "thumbnail": article.get("urlToImage") or "https://via.placeholder.com/120x90?text=No+Image"
+                "title": article.get("title") or "No title",
+                "url": article.get("url") or "#",
+                "source": article.get("source", {}).get("name","Unknown") if isinstance(article.get("source"), dict) else article.get("source","Unknown"),
+                "description": article.get("description") or "No description available",
+                "thumbnail": thumbnail
             })
+
+        # 4️⃣ If no articles found, return a default placeholder article
+        if not news_data:
+            news_data.append({
+                "title": "No live business/tech news available",
+                "url": "#",
+                "source": "NewsLens",
+                "description": "Try again later.",
+                "thumbnail": placeholder_thumb
+            })
+
     except Exception as e:
         print("Error fetching live news:", e)
+        news_data.append({
+            "title": "Error fetching live news",
+            "url": "#",
+            "source": "NewsLens",
+            "description": "Please try again later.",
+            "thumbnail": "https://via.placeholder.com/120x90?text=No+Image"
+        })
 
     return jsonify({"news": news_data})
 
+
+
 @app.route("/verify", methods=["POST"])
 def verify():
-    """Main verification endpoint with Nepal sources"""
     data = request.get_json()
     claim_text = data.get("claim_text", "")
-    
     if not claim_text:
         return jsonify({"error": "No claim text provided"}), 400
 
-    # Use comprehensive verification
     result = verify_claim_comprehensive(claim_text)
     
-    # Map verdict to color
     verdict_color_map = {
         "Likely Accurate": "green",
         "Likely Fake": "red",
@@ -331,7 +307,6 @@ def verify():
     }
     color = verdict_color_map.get(result["verdict"], "grey")
     
-    # Get matching articles from CSV
     csv_articles = get_article_by_claim(claim_text, threshold=0.4)
     
     response = {
@@ -355,7 +330,6 @@ def verify():
         "method": result.get("method", "unknown")
     }
     
-    # Count Nepali sources in response
     nepali_count = sum(1 for item in (response["supporting"] + response["refuting"]) 
                       if item.get("is_nepali", False))
     
@@ -382,7 +356,6 @@ def verify_page():
 
 @app.route("/health")
 def health():
-    """Health check endpoint"""
     status = {
         "status": "ok",
         "verify_module": VERIFY_MODULE_AVAILABLE,
@@ -405,3 +378,5 @@ if __name__ == "__main__":
     print("="*70 + "\n")
     
     app.run(debug=True, port=5000)
+
+
