@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify, render_template
 import pandas as pd
 import os
@@ -7,19 +8,14 @@ import string
 import joblib
 from difflib import SequenceMatcher
 
-# Import the NEPAL-ENHANCED verification module
+# FIXED IMPORT - Use the correct module name
 try:
     from verify_article1 import verify_article
     VERIFY_MODULE_AVAILABLE = True
-    print("✓ Using verifyarticle.py with Nepal sources support")
+    print("✓ Using verify_article_improved.py with Nepal sources support")
 except ImportError:
-    try:
-        from verify_article1 import verify_article
-        VERIFY_MODULE_AVAILABLE = True
-        print("✓ Using verify_article_improved.py")
-    except ImportError:
-        VERIFY_MODULE_AVAILABLE = False
-        print("⚠ Verification module not found")
+    VERIFY_MODULE_AVAILABLE = False
+    print("⚠ Verification module not found")
 
 app = Flask(__name__)
 
@@ -130,10 +126,7 @@ def verify_claim_comprehensive(claim_text):
             evidence = result.get("evidence", [])
             
             # Count Nepali sources in evidence
-            nepali_sources = sum(1 for e in evidence if any(
-                ns in e.get("source", "").lower() 
-                for ns in ["kathmandu", "himalayan", "nepal", "ekantipur", "republica"]
-            ))
+            nepali_sources = sum(1 for e in evidence if e.get("is_nepal", False))
             
             print(f"\nVerification Result:")
             print(f"  Verdict: {verdict}")
@@ -148,7 +141,9 @@ def verify_claim_comprehensive(claim_text):
                 results["percentage"] = int(confidence * 100)
             elif verdict == "supported":
                 results["verdict"] = "Likely Accurate"
-                results["percentage"] = int((1 - confidence) * 100)
+                # For "Likely Accurate", show the inverse percentage
+                # If confidence is 0.8 (80% confident it's accurate), show as 20% fake probability
+                results["percentage"] = 100 - int(confidence * 100)
             else:
                 if confidence > 0.5:
                     results["verdict"] = "Uncertain (Leaning Fake)"
@@ -165,20 +160,12 @@ def verify_claim_comprehensive(claim_text):
                 stance = e.get("stance", "inconclusive")
                 source = e.get("source", "Unknown")
                 
-                # Check if Nepali source
-                is_nepali = any(ns in source.lower() for ns in 
-                              ["kathmandu", "himalayan", "nepal", "ekantipur", "republica", 
-                               "setopati", "ratopati", "gorkhapatra"])
-                
-                if is_nepali:
-                    source = f"🇳🇵 {source}"  # Flag Nepali sources
-                
                 evidence_item = {
                     "source": source,
                     "snippet": e.get("snippet", ""),
                     "url": e.get("url", ""),
                     "text": e.get("title", ""),
-                    "is_nepali": is_nepali
+                    "is_nepali": e.get("is_nepal", False)
                 }
                 
                 if stance == "refuted":
@@ -402,7 +389,7 @@ def health():
         "ml_model": ML_MODEL_AVAILABLE,
         "csv_loaded": not NEWS.empty,
         "csv_articles": len(NEWS) if not NEWS.empty else 0,
-        "nepal_sources_enabled": True
+        "nepal_sources_enabled": VERIFY_MODULE_AVAILABLE
     }
     return jsonify(status)
 
