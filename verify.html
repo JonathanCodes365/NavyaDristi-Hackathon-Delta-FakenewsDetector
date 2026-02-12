@@ -3,129 +3,214 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Fake News Verifier</title>
+<title>Verify Your News</title>
 <style>
-body { 
-    font-family: Arial; 
-    background: #f4f4f4; 
-    display: flex; 
-    justify-content: center; 
-    padding: 50px 20px; 
-    margin: 0; 
-}
-.container { 
-    width: 700px; 
-    background: #fff; 
-    padding: 30px; 
-    border-radius: 10px; 
-    box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
-}
-.input-area, .additional-info { 
-    display: flex; 
-    gap: 10px; 
-    margin-bottom: 15px; 
-}
-input[type="text"], textarea { 
-    flex: 1; 
-    padding: 12px; 
-    font-size: 16px; 
-    border-radius: 5px; 
-    border: 1px solid #ccc; 
-}
-textarea { 
-    resize: vertical; 
-    min-height: 50px; 
-}
-button { 
-    background-color: #FFA500; 
-    border: none; 
-    color: black; 
-    font-size: 16px; 
-    font-weight: bold; 
-    padding: 12px 20px; 
-    border-radius: 5px; 
-    cursor: pointer; 
-    transition: background 0.3s; 
-}
-button:hover { 
-    background-color: #e69500; 
-}
-.result-area { 
-    margin-top: 20px; 
-    font-size: 24px; 
-    font-weight: bold; 
-    text-align: center; 
-    padding: 15px; 
-    border-radius: 8px; 
-    min-height: 50px; 
-}
-.red { 
-    background-color: #f8d7da; 
-    color: #dc3545; 
-}
-.green { 
-    background-color: #d4edda; 
-    color: #28a745; 
-}
+    body {
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        display: flex;
+        justify-content: center;
+        padding: 30px;
+        margin: 0;
+    }
+    .container {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        width: 700px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 20px;
+    }
+    input[type=text], textarea {
+        width: 100%;
+        padding: 12px;
+        margin: 10px 0;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+    }
+    textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+    .button-group {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+    }
+    button {
+        flex: 1;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        transition: 0.3s;
+    }
+    .verify-btn {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .verify-btn:hover {
+        background-color: #45a049;
+    }
+    .back-btn {
+        background-color: #007bff;
+        color: white;
+    }
+    .back-btn:hover {
+        background-color: #0056b3;
+    }
+    .result {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+        font-weight: bold;
+        text-align: center;
+    }
+    .real { background-color: #d4edda; color: #155724; }
+    .fake { background-color: #f8d7da; color: #721c24; }
+    .articles {
+        margin-top: 20px;
+    }
+    .articles h3 {
+        color: #333;
+        margin-bottom: 15px;
+    }
+    .article {
+        border: 1px solid #ddd;
+        padding: 12px;
+        border-radius: 5px;
+        margin-bottom: 12px;
+        display: flex;
+        gap: 12px;
+        background: #fafafa;
+        transition: 0.2s;
+    }
+    .article:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .article img {
+        width: 120px;
+        height: 90px;
+        object-fit: cover;
+        border-radius: 5px;
+        flex-shrink: 0;
+    }
+    .article-details {
+        flex: 1;
+    }
+    .article-title {
+        font-weight: bold;
+        margin: 0 0 8px 0;
+        font-size: 16px;
+    }
+    .article-title a {
+        color: #007bff;
+        text-decoration: none;
+    }
+    .article-title a:hover {
+        text-decoration: underline;
+    }
+    .article-description {
+        color: #555;
+        font-size: 14px;
+        margin: 0 0 8px 0;
+        line-height: 1.4;
+    }
+    .article-source {
+        font-size: 12px;
+        color: #777;
+        font-style: italic;
+    }
+    .no-articles {
+        text-align: center;
+        color: #999;
+        padding: 20px;
+        font-style: italic;
+    }
 </style>
 </head>
 <body>
-
 <div class="container">
-    <div class="input-area">
-        <input type="text" id="claimInput" placeholder="Enter your claim here...">
-        <button id="verifyBtn">Verify</button>
+    <h2>🔎 Verify Your News</h2>
+    <input type="text" id="claim" placeholder="Enter the news claim...">
+    <textarea id="additional_info" placeholder="Additional info (optional)"></textarea>
+    
+    <div class="button-group">
+        <button class="verify-btn" onclick="verifyNews()">Verify</button>
+        <button class="back-btn" onclick="window.location.href='/'">← Back to Home</button>
     </div>
-
-    <div class="additional-info">
-        <textarea id="additionalInfo" placeholder="Additional info (optional)..."></textarea>
-    </div>
-
-    <div class="result-area" id="resultArea"></div>
+    
+    <div id="result" class="result" style="display:none;"></div>
+    <div id="articles" class="articles"></div>
 </div>
 
 <script>
-document.getElementById('verifyBtn').addEventListener('click', async function() {
-    const claim = document.getElementById('claimInput').value.trim();
-    const info = document.getElementById('additionalInfo').value.trim();
-    const resultArea = document.getElementById('resultArea');
+function verifyNews() {
+    const claim = document.getElementById("claim").value;
+    const additional_info = document.getElementById("additional_info").value;
 
     if (!claim) {
-        resultArea.innerHTML = "<span class='red'>Please enter a claim!</span>";
+        alert("Please enter a claim to verify.");
         return;
     }
 
-    resultArea.innerHTML = "Verifying...";
+    const resultDiv = document.getElementById("result");
+    resultDiv.style.display = "block";
+    resultDiv.className = "result";
+    resultDiv.innerHTML = "Verifying... please wait.";
 
-    try {
-        const response = await fetch("http://127.0.0.1:5000/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ claim: claim, additional_info: info })
-        });
+    fetch("/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ claim, additional_info })
+    })
+    .then(res => res.json())
+    .then(data => {
+        resultDiv.className = 'result ' + (data.result === "Real" ? "real" : "fake");
+        resultDiv.innerHTML = `<strong>Claim is: ${data.result}</strong><br>Probability of being FAKE: ${data.percentage}%`;
 
-        const data = await response.json();
+        const articlesDiv = document.getElementById("articles");
+        articlesDiv.innerHTML = "";
 
-        if (data.error) {
-            resultArea.innerHTML = "<span class='red'>Error: " + data.error + "</span>";
+        if (data.articles && data.articles.length > 0) {
+            articlesDiv.innerHTML = "<h3>📰 Related Articles:</h3>";
+            
+            data.articles.forEach(article => {
+                const thumbnailUrl = article.thumbnail || 'https://via.placeholder.com/120x90?text=No+Image';
+                
+                articlesDiv.innerHTML += `
+                    <div class="article">
+                        <img src="${thumbnailUrl}" alt="thumbnail" onerror="this.src='https://via.placeholder.com/120x90?text=No+Image'">
+                        <div class="article-details">
+                            <p class="article-title"><a href="${article.url}" target="_blank">${article.title}</a></p>
+                            <p class="article-description">${article.description}</p>
+                            <p class="article-source">Source: ${article.source}</p>
+                        </div>
+                    </div>
+                `;
+            });
         } else {
-            const colorClass = data.result === "Real" ? "green" : "red";
-            resultArea.innerHTML = `<span class="${colorClass}">${data.result}</span>`;
+            articlesDiv.innerHTML = "<div class='no-articles'>No matching articles found in database.</div>";
         }
-
-    } catch (err) {
+    })
+    .catch(err => {
         console.error(err);
-        resultArea.innerHTML = "<span class='red'>Error connecting to backend.</span>";
-    }
-});
+        resultDiv.className = "result fake";
+        resultDiv.innerHTML = "Error verifying claim. Please try again later.";
+    });
+}
 
-// Allow pressing ENTER key to verify
-document.getElementById('claimInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        document.getElementById('verifyBtn').click();
-    }
+// Press Enter to submit
+document.getElementById("claim").addEventListener("keypress", function(e) {
+    if (e.key === "Enter") verifyNews();
 });
 </script>
-
 </body>
 </html>
