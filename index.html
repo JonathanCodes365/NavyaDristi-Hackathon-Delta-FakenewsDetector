@@ -270,13 +270,16 @@
             container.appendChild(card);
         });
     }
-
-  async function searchArticles() {
+async function searchArticles() {
     const query = document.getElementById('search-input').value.trim();
     if (!query) return;
 
     try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+        if (!response.ok) {
+            console.error("Error fetching search results:", response.status);
+            return;
+        }
         const data = await response.json();
         displayNews(data.news);
     } catch (error) {
@@ -284,6 +287,13 @@
     }
 }
 
+
+document.getElementById('search-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // prevent form submission / page reload
+        searchArticles();
+    }
+});
 
     loadNews();
 </script>
