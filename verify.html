@@ -5,207 +5,126 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fake News Verifier</title>
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        background: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        padding: 50px 20px;
-        margin: 0;
-    }
-
-    .container {
-        width: 650px;
-        background: #fff;
-        padding: 30px;
-        border-radius: 10px;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    }
-
-    .input-area, .additional-info {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 15px;
-    }
-
-    input[type="text"], textarea {
-        flex: 1;
-        padding: 12px;
-        font-size: 16px;
-        border-radius: 5px;
-        border: 1px solid #ccc;
-    }
-
-    textarea {
-        resize: vertical;
-        min-height: 50px;
-    }
-
-    button {
-        background-color: #FFA500; /* orangish-yellow */
-        border: none;
-        color: black;
-        font-size: 16px;
-        font-weight: bold;
-        padding: 12px 20px;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background 0.3s;
-    }
-
-    button:hover {
-        background-color: #e69500;
-    }
-
-    .info-text {
-        font-size: 14px;
-        color: #555;
-        margin-bottom: 10px;
-    }
-
-    .result-area {
-        background: #f9f9f9;
-        padding: 20px;
-        border-radius: 5px;
-        min-height: 180px;
-        border: 1px solid #ddd;
-        overflow-y: auto;
-        font-size: 15px;
-        line-height: 1.5;
-        white-space: pre-wrap; /* preserve line breaks */
-    }
-
-    /* Verdict styling */
-    .verdict {
-        font-size: 20px;
-        font-weight: bold;
-        margin-bottom: 10px;
-        padding: 8px 12px;
-        border-radius: 5px;
-        display: inline-block;
-    }
-
-    .supported {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-    }
-
-    .refuted {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-    }
-
-    .inconclusive {
-        background-color: #fff3cd;
-        color: #856404;
-        border: 1px solid #ffeeba;
-    }
-
-    .evidence-list {
-        margin-top: 10px;
-        padding-left: 20px;
-    }
-
-    .evidence-list li {
-        margin-bottom: 8px;
-    }
+body { 
+    font-family: Arial; 
+    background: #f4f4f4; 
+    display: flex; 
+    justify-content: center; 
+    padding: 50px 20px; 
+    margin: 0; 
+}
+.container { 
+    width: 700px; 
+    background: #fff; 
+    padding: 30px; 
+    border-radius: 10px; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
+}
+.input-area, .additional-info { 
+    display: flex; 
+    gap: 10px; 
+    margin-bottom: 15px; 
+}
+input[type="text"], textarea { 
+    flex: 1; 
+    padding: 12px; 
+    font-size: 16px; 
+    border-radius: 5px; 
+    border: 1px solid #ccc; 
+}
+textarea { 
+    resize: vertical; 
+    min-height: 50px; 
+}
+button { 
+    background-color: #FFA500; 
+    border: none; 
+    color: black; 
+    font-size: 16px; 
+    font-weight: bold; 
+    padding: 12px 20px; 
+    border-radius: 5px; 
+    cursor: pointer; 
+    transition: background 0.3s; 
+}
+button:hover { 
+    background-color: #e69500; 
+}
+.result-area { 
+    margin-top: 20px; 
+    font-size: 24px; 
+    font-weight: bold; 
+    text-align: center; 
+    padding: 15px; 
+    border-radius: 8px; 
+    min-height: 50px; 
+}
+.red { 
+    background-color: #f8d7da; 
+    color: #dc3545; 
+}
+.green { 
+    background-color: #d4edda; 
+    color: #28a745; 
+}
 </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Claim Input + Verify Button -->
-        <div class="input-area">
-            <input type="text" placeholder="Enter your claim here..." id="claimInput">
-            <button id="verifyBtn">Verify</button>
-        </div>
 
-        <!-- Optional Additional Info -->
-        <div class="additional-info">
-            <textarea id="additionalInfo" placeholder="Enter additional info here (optional)..."></textarea>
-        </div>
-
-        <div class="info-text">You can add extra context in the additional info box. Results will appear below.</div>
-
-        <!-- Result Display Area -->
-        <div class="result-area" id="resultArea"></div>
+<div class="container">
+    <div class="input-area">
+        <input type="text" id="claimInput" placeholder="Enter your claim here...">
+        <button id="verifyBtn">Verify</button>
     </div>
 
-    <script>
-       
+    <div class="additional-info">
+        <textarea id="additionalInfo" placeholder="Additional info (optional)..."></textarea>
+    </div>
 
+    <div class="result-area" id="resultArea"></div>
+</div>
+
+<script>
 document.getElementById('verifyBtn').addEventListener('click', async function() {
-
     const claim = document.getElementById('claimInput').value.trim();
     const info = document.getElementById('additionalInfo').value.trim();
     const resultArea = document.getElementById('resultArea');
 
     if (!claim) {
-        resultArea.innerHTML = "<div class='inconclusive verdict'>Please enter a claim!</div>";
+        resultArea.innerHTML = "<span class='red'>Please enter a claim!</span>";
         return;
     }
 
-    resultArea.innerHTML = "Verifying news... please wait.";
+    resultArea.innerHTML = "Verifying...";
 
     try {
-
-        // CALL YOUR BACKEND API HERE
-        const response = await fetch("/verify", {
+        const response = await fetch("http://127.0.0.1:5000/verify", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                claim: claim,
-                additional_info: info
-            })
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ claim: claim, additional_info: info })
         });
 
         const data = await response.json();
 
-        // Decide verdict based on percentage
-        let verdictClass = "inconclusive";
-        if (data.credibility_percent >= 65) verdictClass = "supported";
-        else if (data.credibility_percent <= 35) verdictClass = "refuted";
+        if (data.error) {
+            resultArea.innerHTML = "<span class='red'>Error: " + data.error + "</span>";
+        } else {
+            const colorClass = data.result === "Real" ? "green" : "red";
+            resultArea.innerHTML = `<span class="${colorClass}">${data.result}</span>`;
+        }
 
-        // Build result HTML
-        let html = `
-            <div class="verdict ${verdictClass}">
-                Credibility: ${data.credibility_percent}% REAL
-                (${data.fake_percent}% FAKE)
-            </div>
-
-            <div><b>Claim:</b> "${claim}"</div>
-        `;
-
-        // Sources list
-        html += `<ul class="evidence-list">`;
-
-        data.evidence.forEach(ev => {
-
-            html += `
-                <li>
-                    <b>[${ev.stance.toUpperCase()}]</b>
-                    ${ev.title}
-                    — ${ev.source}
-                    <br>
-                    <a href="${ev.url}" target="_blank">${ev.url}</a>
-                </li>
-            `;
-        });
-
-        html += `</ul>`;
-
-        resultArea.innerHTML = html;
-
-    } catch(err) {
-        resultArea.innerHTML = "<div class='refuted verdict'>Error verifying news.</div>";
+    } catch (err) {
         console.error(err);
+        resultArea.innerHTML = "<span class='red'>Error connecting to backend.</span>";
     }
-
 });
 
+// Allow pressing ENTER key to verify
+document.getElementById('claimInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        document.getElementById('verifyBtn').click();
+    }
+});
 </script>
 
 </body>
